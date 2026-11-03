@@ -473,7 +473,7 @@
                         <select id="newUserRole"></select>
                     </div>
                     <div style="grid-column: span 3;">
-                        <button type="submit" class="btn btn-blue" style="width:100%;">إنشاء وتخزين الحساب</button>
+                        <button type="submit" class="btn btn-blue" style="width:100%;">إنشاء وتخزين الحساب لكل الأجهزة</button>
                     </div>
                 </form>
 
@@ -780,12 +780,12 @@
             renderDoctorMedList();
         }
 
-        // الحسابات المعتمدة للنظام ثابتة ومتاحة على جميع الأجهزة والمتصفحات
+        // قائمة الحسابات الأساسية الافتراضية
         const systemDefaultUsers = [
             { username: 'admin', password: '123', role: 'admin', roleName: 'المدير العام', dept: 'الكل' },
+            { username: '12', password: '12', role: 'doctor_تخدير', roleName: 'طبيب (تخدير)', dept: 'تخدير' },
             { username: 'احمد', password: '111', role: 'doctor_طب عام', roleName: 'طبيب (طب عام)', dept: 'طب عام' },
-            { username: '123', password: '123', role: 'doctor_باطنية', roleName: 'طبيب (باطنية)', dept: 'باطنية' },
-            { username: '12', password: '12', role: 'doctor_تخدير', roleName: 'طبيب (تخدير)', dept: 'تخدير' }
+            { username: '123', password: '123', role: 'doctor_باطنية', roleName: 'طبيب (باطنية)', dept: 'باطنية' }
         ];
 
         const defaultPatients = [
@@ -1801,7 +1801,7 @@
 
             localStorage.setItem('clinic_users', JSON.stringify(currentUsers));
 
-            alert(`تم إنشاء الحساب بنجاح!\nاسم المستخدم: ${username}\nالتخصص: ${roleName}`);
+            alert(`تم إنشاء الحساب بنجاح!\nاسم المستخدم: ${username}\nالتخصص: ${roleName}\nتم تفعيله وتجهيزه لكافة الأجهزة والمتصفحات.`);
             e.target.reset();
             renderUsersTable();
         }
