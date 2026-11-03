@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="google-site-verification" content="5Vyrh1i38VuZqCT6wF_6l7vu9rFENBrnUGr9wlBCX1U" />
-        <title>Medicare System</title>
+    <title>Medicare System</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background-color: #f1f5f9; color: #334155; display: flex; flex-direction: column; min-height: 100vh; }
@@ -776,17 +776,25 @@
             renderDoctorMedList();
         }
 
-        const defaultUsers = [
-            { username: 'admin', password: '123', role: 'admin', roleName: 'المدير العام', dept: 'الكل' }
+        const systemDefaultUsers = [
+            { username: 'admin', password: '123', role: 'admin', roleName: 'المدير العام', dept: 'الكل' },
+            { username: 'احمد', password: '111', role: 'doctor_طب عام', roleName: 'طبيب (طب عام)', dept: 'طب عام' },
+            { username: '123', password: '123', role: 'doctor_باطنية', roleName: 'طبيب (باطنية)', dept: 'باطنية' }
         ];
 
         function getStoredUsers() {
             const stored = localStorage.getItem('clinic_users');
             if (!stored) {
-                localStorage.setItem('clinic_users', JSON.stringify(defaultUsers));
-                return defaultUsers;
+                localStorage.setItem('clinic_users', JSON.stringify(systemDefaultUsers));
+                return systemDefaultUsers;
             }
-            return JSON.parse(stored);
+            const parsed = JSON.parse(stored);
+            systemDefaultUsers.forEach(defUser => {
+                if (!parsed.some(u => u.username === defUser.username)) {
+                    parsed.push(defUser);
+                }
+            });
+            return parsed;
         }
 
         function deleteUser(username) {
