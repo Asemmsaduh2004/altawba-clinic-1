@@ -132,7 +132,7 @@
 
         <!-- SCREEN 2: RECEPTION -->
         <div id="screen-reception" class="card hidden">
-            <h2>🎫 حجز تسكرة دخول جديدة</h2>
+            <h2>🎫 حجز تذكرة دخول جديدة</h2>
             <form onsubmit="addPatientTicket(event)" class="grid-3">
                 <div class="form-group">
                     <label>اسم المريض رباعي</label>
@@ -148,10 +148,10 @@
                 </div>
                 <div class="form-group">
                     <label>القسم المطلوب</label>
-                    <select id="patientDept"></select>
+                    <select id="patientDept" required></select>
                 </div>
                 <div style="grid-column: span 2; display: flex; align-items: flex-end;">
-                    <button type="submit" class="btn" style="width:100%;">إصدار تسكرة وتحديد رقم الدور</button>
+                    <button type="submit" class="btn" style="width:100%;">إصدار تذكرة وتحديد رقم الدور</button>
                 </div>
             </form>
         </div>
@@ -189,7 +189,7 @@
                     </div>
                     <div>
                         <label style="font-size:13px; color:#0369a1;">السعر الذي تريد حسابه (₪) [اضغط Enter للجمع]:</label>
-                        <input type="number" id="customDentalServicePrice" placeholder="مثال: 10" onkeydown="handleEnterCalculate(event)">
+                        <input type="number" id="customDentalServicePrice" placeholder="مثال: 10" onkeydown="handleEnterCalculate(event)" oninput="calculateLiveDoctorTotal()">
                     </div>
                 </div>
             </div>
@@ -635,7 +635,11 @@
 
             const receptionSelect = document.getElementById('patientDept');
             if (receptionSelect) {
+                const currentVal = receptionSelect.value;
                 receptionSelect.innerHTML = depts.map(d => `<option value="${d}">قسم ${d}</option>`).join('');
+                if (currentVal && depts.includes(currentVal)) {
+                    receptionSelect.value = currentVal;
+                }
             }
 
             const userRoleSelect = document.getElementById('newUserRole');
@@ -934,7 +938,6 @@
 
         function refreshActiveScreenData() {
             setHospitalNameDisplay();
-            renderDepartmentsUI();
 
             if(activeTabName === 'doctor') {
                 updateDoctorDropdown();
@@ -990,8 +993,9 @@
         function addPatientTicket(e) {
             e.preventDefault();
             const patients = getStoredPatients();
-            const rawDept = document.getElementById('patientDept').value;
-            const deptName = normalizeDept(rawDept);
+            const deptSelect = document.getElementById('patientDept');
+            const selectedDeptValue = deptSelect ? deptSelect.value : '';
+            const deptName = normalizeDept(selectedDeptValue);
             
             const todayStr = new Date().toISOString().slice(0, 10);
             const sameDeptTodayCount = patients.filter(p => normalizeDept(p.dept) === deptName && (p.date === todayStr || !p.date)).length;
@@ -1016,6 +1020,7 @@
 
             alert(`تم تسجيل المريض (${patient.name}) بنجاح.\nالتاريخ: ${patient.date}\nالقسم: ${patient.dept}\nرقم الدور: [${patient.queueNum}]`);
             e.target.reset();
+            renderDepartmentsUI();
         }
 
         function updateDoctorDropdown() {
@@ -1057,6 +1062,22 @@
                 return;
             }
             selectedMedsState[medName] = isChecked;
+            if (isChecked && !selectedMedsQtyState[medName]) {
+                selectedMedsQtyState[medName] = 1;
+            }
+            calculateLiveDoctorTotal();
+        }
+
+        function updateMedQty(medName, qtyValue) {
+            const qty = parseInt(qtyValue) || 1;
+            selectedMedsQtyState[medName] = qty;
+            
+            // ربط تلقائي لصح التحديد في حالة اختيار كمية
+            if (!selectedMedsState[medName]) {
+                selectedMedsState[medName] = true;
+                const checkEl = document.querySelector(`.med-check[value="${medName}"]`);
+                if (checkEl) checkEl.checked = true;
+            }
             calculateLiveDoctorTotal();
         }
 
@@ -1083,7 +1104,7 @@
                     </label>
                     <div style="display:flex; align-items:center; gap:4px;">
                         <span style="font-size:11px; color:#64748b;">العدد:</span>
-                        <select class="med-qty-select" data-medname="${m.name}" onchange="selectedMedsQtyState['${m.name}'] = parseInt(this.value); calculateLiveDoctorTotal();">
+                        <select class="med-qty-select" data-medname="${m.name}" onchange="updateMedQty('${m.name}', this.value)">
                             ${[1,2,3,4,5,6,7,8,9,10].map(n => `<option value="${n}" ${n === currentQty ? 'selected' : ''}>${n}</option>`).join('')}
                         </select>
                     </div>
@@ -1113,7 +1134,6 @@
             calculateLiveDoctorTotal();
         }
 
-        // دالة الجمع التلقائي والحساب الفوري عند اختيار الإجراءات أو ضغط Enter
         function calculateLiveDoctorTotal() {
             let total = 0;
             document.querySelectorAll('.dental-check:checked').forEach(c => {
@@ -1124,9 +1144,9 @@
             total += customPrice;
 
             document.querySelectorAll('.med-check:checked').forEach(c => {
+                const medName = c.value;
                 const unitPrice = parseFloat(c.getAttribute('data-price') || 0);
-                const qtySelect = c.closest('.med-item').querySelector('.med-qty-select');
-                const qty = qtySelect ? parseInt(qtySelect.value) : 1;
+                const qty = selectedMedsQtyState[medName] || 1;
                 total += (unitPrice * qty);
             });
 
@@ -1171,8 +1191,7 @@
             document.querySelectorAll('.med-check:checked').forEach(c => {
                 const medName = c.value;
                 const unitPrice = parseFloat(c.getAttribute('data-price') || 0);
-                const qtySelect = c.closest('.med-item').querySelector('.med-qty-select');
-                const requestedQty = qtySelect ? parseInt(qtySelect.value) : 1;
+                const requestedQty = selectedMedsQtyState[medName] || 1;
 
                 const invItem = inventory.find(i => i.name === medName);
                 if (invItem && invItem.qty < requestedQty) {
@@ -1555,7 +1574,7 @@
                         let medName = item.replace("دواء: ", "").trim();
                         let qtyToDeduct = 1;
 
-                        const qtyMatch = medName.match(/\(عدد \d+\)/, "");
+                        const qtyMatch = medName.match(/\(عدد (\d+)\)/);
                         if (qtyMatch) {
                             qtyToDeduct = parseInt(qtyMatch[1]);
                             medName = medName.replace(/\(عدد \d+\)/, "").trim();
@@ -1786,7 +1805,6 @@
         setInterval(function() {
             if (currentUser && activeTabName !== 'login') {
                 updateNotificationBadges();
-                refreshActiveScreenData();
             }
         }, 1000);
     </script>
