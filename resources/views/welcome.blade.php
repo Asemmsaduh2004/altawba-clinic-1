@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="google-site-verification" content="5Vyrh1i38VuZqCT_YOUR_CODE_HERE" />
     <title>Medicare System</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
@@ -1072,7 +1073,6 @@
             const qty = parseInt(qtyValue) || 1;
             selectedMedsQtyState[medName] = qty;
             
-            // ربط تلقائي لصح التحديد في حالة اختيار كمية
             if (!selectedMedsState[medName]) {
                 selectedMedsState[medName] = true;
                 const checkEl = document.querySelector(`.med-check[value="${medName}"]`);
@@ -1574,14 +1574,14 @@
                         let medName = item.replace("دواء: ", "").trim();
                         let qtyToDeduct = 1;
 
-                        const qtyMatch = medName.match(/\(عدد (\d+)\)/);
+                        const qtyMatch = medName.match(/\(عدد \d+\)/);
                         if (qtyMatch) {
                             qtyToDeduct = parseInt(qtyMatch[1]);
                             medName = medName.replace(/\(عدد \d+\)/, "").trim();
                         }
 
                         const invItem = inventory.find(i => i.name === medName);
-                        if (invItem) {
+                        if (!invItem) {
                             invItem.qty = Math.max(0, invItem.qty - qtyToDeduct);
                             invItem.usedToday = (invItem.usedToday || 0) + qtyToDeduct;
                             invItem.totalUsed = (invItem.totalUsed || 0) + qtyToDeduct;
