@@ -592,7 +592,7 @@
         let selectedMedsQtyState = {};
         let selectedDentalState = {};
 
-        const defaultDepts = ['جلدية', 'أسنان', 'طب عام', 'باطنية', 'أطفال', 'تخدير'];
+        const defaultDepts = ['جلدية', 'أسنان', 'طب عام', 'باطنية', 'أطفال', 'تخدير', 'تمريض'];
 
         function getStoredDepartments() {
             const stored = localStorage.getItem('clinic_departments');
@@ -600,7 +600,7 @@
                 localStorage.setItem('clinic_departments', JSON.stringify(defaultDepts));
                 return defaultDepts;
             }
-            const parsed = JSON.parse(stored);
+            let parsed = JSON.parse(stored);
             defaultDepts.forEach(d => {
                 if(!parsed.includes(d)) parsed.push(d);
             });
@@ -663,7 +663,7 @@
                 deptBox.innerHTML = depts.map(d => `
                     <span class="badge" style="background:#e0f2fe; color:#0369a1; padding:6px 12px; font-size:13px; display:inline-flex; align-items:center; gap:6px;">
                         قسم ${d} 
-                        ${!defaultDepts.includes(d) ? `<button onclick="deleteDepartment('${d}')" style="border:none; background:none; color:#ef4444; cursor:pointer; font-weight:bold;">✕</button>` : ''}
+                        <button onclick="deleteDepartment('${d}')" style="border:none; background:none; color:#ef4444; cursor:pointer; font-weight:bold;">✕</button>
                     </span>
                 `).join('');
             }
@@ -780,12 +780,13 @@
             renderDoctorMedList();
         }
 
-        // قائمة الحسابات الأساسية الافتراضية
+        // جميع الحسابات المعتمدة والثابتة لجميع الأجهزة والمتصفحات
         const systemDefaultUsers = [
             { username: 'admin', password: '123', role: 'admin', roleName: 'المدير العام', dept: 'الكل' },
             { username: '12', password: '12', role: 'doctor_تخدير', roleName: 'طبيب (تخدير)', dept: 'تخدير' },
             { username: 'احمد', password: '111', role: 'doctor_طب عام', roleName: 'طبيب (طب عام)', dept: 'طب عام' },
-            { username: '123', password: '123', role: 'doctor_باطنية', roleName: 'طبيب (باطنية)', dept: 'باطنية' }
+            { username: '123', password: '123', role: 'doctor_باطنية', roleName: 'طبيب (باطنية)', dept: 'باطنية' },
+            { username: 'dr_ahmed', password: '123', role: 'doctor_جلدية', roleName: 'طبيب (جلدية)', dept: 'جلدية' }
         ];
 
         const defaultPatients = [
@@ -816,6 +817,7 @@
                 users = users.filter(u => u.username !== username);
                 localStorage.setItem('clinic_users', JSON.stringify(users));
                 renderUsersTable();
+                alert(`تم حذف حساب (${username}) بنجاح.`);
             }
         }
 
@@ -1801,7 +1803,7 @@
 
             localStorage.setItem('clinic_users', JSON.stringify(currentUsers));
 
-            alert(`تم إنشاء الحساب بنجاح!\nاسم المستخدم: ${username}\nالتخصص: ${roleName}\nتم تفعيله وتجهيزه لكافة الأجهزة والمتصفحات.`);
+            alert(`تم إنشاء الحساب بنجاح!\nاسم المستخدم: ${username}\nالتخصص: ${roleName}`);
             e.target.reset();
             renderUsersTable();
         }
