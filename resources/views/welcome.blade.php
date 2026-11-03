@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="google-site-verification" content="5Vyrh1i38VuZqCT_YOUR_CODE_HERE" />
-    <title>Medicare System</title>
+    <meta name="google-site-verification" content="5Vyrh1i38VuZqCT6wF_6l7vu9rFENBrnUGr9wlBCX1U" />
+        <title>Medicare System</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background-color: #f1f5f9; color: #334155; display: flex; flex-direction: column; min-height: 100vh; }
