@@ -592,7 +592,7 @@
         let selectedMedsQtyState = {};
         let selectedDentalState = {};
 
-        const defaultDepts = ['جلدية', 'أسنان', 'طب عام', 'باطنية', 'أطفال'];
+        const defaultDepts = ['جلدية', 'أسنان', 'طب عام', 'باطنية', 'أطفال', 'تخدير'];
 
         function getStoredDepartments() {
             const stored = localStorage.getItem('clinic_departments');
@@ -600,7 +600,11 @@
                 localStorage.setItem('clinic_departments', JSON.stringify(defaultDepts));
                 return defaultDepts;
             }
-            return JSON.parse(stored);
+            const parsed = JSON.parse(stored);
+            defaultDepts.forEach(d => {
+                if(!parsed.includes(d)) parsed.push(d);
+            });
+            return parsed;
         }
 
         function saveDepartments(depts) {
@@ -776,14 +780,14 @@
             renderDoctorMedList();
         }
 
-        // الحسابات المعتمدة للنظام (متاحة دائماً لجميع الأجهزة والمتصفحات)
+        // الحسابات المعتمدة للنظام ثابتة ومتاحة على جميع الأجهزة والمتصفحات
         const systemDefaultUsers = [
             { username: 'admin', password: '123', role: 'admin', roleName: 'المدير العام', dept: 'الكل' },
             { username: 'احمد', password: '111', role: 'doctor_طب عام', roleName: 'طبيب (طب عام)', dept: 'طب عام' },
-            { username: '123', password: '123', role: 'doctor_باطنية', roleName: 'طبيب (باطنية)', dept: 'باطنية' }
+            { username: '123', password: '123', role: 'doctor_باطنية', roleName: 'طبيب (باطنية)', dept: 'باطنية' },
+            { username: '12', password: '12', role: 'doctor_تخدير', roleName: 'طبيب (تخدير)', dept: 'تخدير' }
         ];
 
-        // الحالات التاريخية والسجل الافتراضي لضمان التزامن على جميع الأجهزة
         const defaultPatients = [
             { id: 1, date: '2026-11-01', queueNum: 1, name: 'عاصم مصبح', nationalId: '401234567', phone: '0599000000', dept: 'جلدية', doctorName: 'admin', notes: 'متابعة دورية', status: 'completed', meds: ['دواء: اموكسيلين 500mg (عدد 1)'], payMethod: 'جوال بي (Jawwal Pay)', payRef: 'REF-80512', total: 0 },
             { id: 2, date: '2026-11-01', queueNum: 2, name: 'عاصم مصبح', nationalId: '401234567', phone: '0599000000', dept: 'جلدية', doctorName: 'admin', notes: 'كشفية قسم الجلدية', status: 'completed', meds: ['دواء: فيتامين C (عدد 1)'], payMethod: 'جوال بي (Jawwal Pay)', payRef: 'REF-99510', total: 100 },
