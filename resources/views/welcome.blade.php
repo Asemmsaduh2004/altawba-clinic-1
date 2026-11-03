@@ -776,10 +776,18 @@
             renderDoctorMedList();
         }
 
+        // الحسابات المعتمدة للنظام (متاحة دائماً لجميع الأجهزة والمتصفحات)
         const systemDefaultUsers = [
             { username: 'admin', password: '123', role: 'admin', roleName: 'المدير العام', dept: 'الكل' },
             { username: 'احمد', password: '111', role: 'doctor_طب عام', roleName: 'طبيب (طب عام)', dept: 'طب عام' },
             { username: '123', password: '123', role: 'doctor_باطنية', roleName: 'طبيب (باطنية)', dept: 'باطنية' }
+        ];
+
+        // الحالات التاريخية والسجل الافتراضي لضمان التزامن على جميع الأجهزة
+        const defaultPatients = [
+            { id: 1, date: '2026-11-01', queueNum: 1, name: 'عاصم مصبح', nationalId: '401234567', phone: '0599000000', dept: 'جلدية', doctorName: 'admin', notes: 'متابعة دورية', status: 'completed', meds: ['دواء: اموكسيلين 500mg (عدد 1)'], payMethod: 'جوال بي (Jawwal Pay)', payRef: 'REF-80512', total: 0 },
+            { id: 2, date: '2026-11-01', queueNum: 2, name: 'عاصم مصبح', nationalId: '401234567', phone: '0599000000', dept: 'جلدية', doctorName: 'admin', notes: 'كشفية قسم الجلدية', status: 'completed', meds: ['دواء: فيتامين C (عدد 1)'], payMethod: 'جوال بي (Jawwal Pay)', payRef: 'REF-99510', total: 100 },
+            { id: 3, date: '2026-11-01', queueNum: 1, name: 'عاصم مصبح', nationalId: '401234567', phone: '0599000000', dept: 'أسنان', doctorName: 'admin', notes: 'تنظيف أسنان', status: 'waiting_doctor', meds: [], payMethod: '-', payRef: '-', total: 0 }
         ];
 
         function getStoredUsers() {
@@ -809,7 +817,11 @@
 
         function getStoredPatients() {
             const stored = localStorage.getItem('clinic_patients');
-            return stored ? JSON.parse(stored) : [];
+            if (!stored) {
+                localStorage.setItem('clinic_patients', JSON.stringify(defaultPatients));
+                return defaultPatients;
+            }
+            return JSON.parse(stored);
         }
 
         function savePatients(patients) {
