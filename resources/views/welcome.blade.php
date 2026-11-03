@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="google-site-verification" content="5Vyrh1i38VuZqCT6wF_6l7vu9rFENBrnUGr9wlBCX1U" />
     <title>Medicare System</title>
+    <!-- مكتبة الربط السحابي Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background-color: #f1f5f9; color: #334155; display: flex; flex-direction: column; min-height: 100vh; }
@@ -38,10 +40,8 @@
         .nav-bar { display: flex; gap: 10px; background: white; padding: 10px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; overflow-x: auto; }
         .nav-btn { background: #f1f5f9; border: none; padding: 12px 18px; border-radius: 8px; font-weight: bold; color: #475569; cursor: pointer; white-space: nowrap; position: relative; font-size: 15px; }
         .nav-btn.active { background: #059669; color: white; }
-        
         .nav-badge { background-color: #ef4444; color: white; font-size: 11px; font-weight: bold; padding: 2px 7px; border-radius: 10px; margin-right: 6px; display: inline-block; }
         .queue-badge { background-color: #3b82f6; color: white; font-size: 12px; font-weight: bold; padding: 3px 8px; border-radius: 6px; margin-left: 5px; }
-
         .stat-card { background: white; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0; text-align: center; }
         .stat-number { font-size: 22px; font-weight: bold; margin-top: 5px; color: #059669; }
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
@@ -50,14 +50,12 @@
         .hidden { display: none !important; }
         .login-box { max-width: 400px; margin: 40px auto; }
         .med-box { background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; }
-
         .search-container { position: relative; margin-bottom: 15px; }
         .med-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: white; padding: 12px 16px; border-radius: 8px; border: 1px solid #cbd5e1; cursor: pointer; transition: 0.2s; user-select: none; font-size: 15px; font-weight: bold; }
         .med-item:hover { border-color: #10b981; background: #f0fdf4; }
         .med-item.out-of-stock { background: #fef2f2; border-color: #fca5a5; opacity: 0.7; }
         .med-item input[type="checkbox"] { width: 22px; height: 22px; cursor: pointer; }
         .med-qty-select { width: 70px; padding: 4px 6px; border-radius: 6px; border: 1px solid #10b981; font-weight: bold; font-size: 14px; background: #ecfdf5; color: #047857; text-align: center; }
-
         .pharmacy-card { background: #ffffff; border: 2px solid #0284c7; padding: 18px; border-radius: 10px; margin-bottom: 15px; }
         .notes-text { background: #f0f9ff; color: #0369a1; padding: 10px; border-radius: 6px; border-right: 4px solid #0284c7; font-size: 16px; font-weight: bold; margin-top: 8px; }
 
@@ -79,7 +77,7 @@
                 </div>
                 <div>
                     <h1 id="hospitalNameDisplay" style="font-size:20px; font-family:'Segoe UI', sans-serif;">Medicare</h1>
-                    <p style="font-size:11px; opacity: 0.8;">Management & Real-time Database System</p>
+                    <p style="font-size:11px; opacity: 0.8;">Real-time Cloud Database Management System</p>
                 </div>
             </div>
 
@@ -118,7 +116,7 @@
                     <label>كلمة المرور</label>
                     <input type="password" id="loginPassword" placeholder="أدخل كلمة المرور" required>
                 </div>
-                <button type="submit" class="btn" style="width:100%;">دخول للنظام 🚀</button>
+                <button type="submit" id="loginBtn" class="btn" style="width:100%;">دخول للنظام 🚀</button>
             </form>
         </div>
 
@@ -331,7 +329,6 @@
 
         <!-- SCREEN 6: ADMIN & REPORTS -->
         <div id="screen-admin" class="hidden">
-            
             <div class="card no-print" style="border: 2px solid #10b981; background: #f0fdf4;">
                 <h2>⚙️ إعدادات اسم والشعار الخاص بالمستشفى / العيادة (للأدمن)</h2>
                 <div class="grid-2">
@@ -458,7 +455,7 @@
             </div>
 
             <div class="card no-print">
-                <h2>👤 إدارة وتعين حسابات الموظفين والأطباء</h2>
+                <h2>👤 إدارة وتعيين حسابات الموظفين والأطباء (تخزين سحابي مباشر)</h2>
                 <form onsubmit="addUserByAdmin(event)" class="grid-3">
                     <div class="form-group">
                         <label>اسم المستخدم</label>
@@ -473,11 +470,11 @@
                         <select id="newUserRole"></select>
                     </div>
                     <div style="grid-column: span 3;">
-                        <button type="submit" class="btn btn-blue" style="width:100%;">إنشاء وتخزين الحساب لكل الأجهزة</button>
+                        <button type="submit" id="createUserBtn" class="btn btn-blue" style="width:100%;">إنشاء وتخزين الحساب بـ Supabase لكل الأجهزة ☁️</button>
                     </div>
                 </form>
 
-                <h3 style="margin-top:20px; font-size:15px; color:#475569;">الحسابات المفعلة بالنظام:</h3>
+                <h3 style="margin-top:20px; font-size:15px; color:#475569;">الحسابات المفعلة سحابياً بالنظام:</h3>
                 <table>
                     <thead>
                         <tr>
@@ -495,6 +492,11 @@
     </main>
 
     <script>
+        // إعداد الاتصال بقاعدة البيانات السحابية Supabase
+        const SUPABASE_URL = 'https://ookoogducpncijszgjys.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_uoWj7tjL5JSWpqg1SA7MUw_VKoJ-FI3';
+        const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
         function updateClock() {
             const now = new Date();
             const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
@@ -780,53 +782,37 @@
             renderDoctorMedList();
         }
 
-        // جميع الحسابات المعتمدة والثابتة لجميع الأجهزة والمتصفحات
-        const systemDefaultUsers = [
-            { username: 'admin', password: '123', role: 'admin', roleName: 'المدير العام', dept: 'الكل' },
-            { username: '12', password: '12', role: 'doctor_تخدير', roleName: 'طبيب (تخدير)', dept: 'تخدير' },
-            { username: 'احمد', password: '111', role: 'doctor_طب عام', roleName: 'طبيب (طب عام)', dept: 'طب عام' },
-            { username: '123', password: '123', role: 'doctor_باطنية', roleName: 'طبيب (باطنية)', dept: 'باطنية' },
-            { username: 'dr_ahmed', password: '123', role: 'doctor_جلدية', roleName: 'طبيب (جلدية)', dept: 'جلدية' }
-        ];
-
-        const defaultPatients = [
-            { id: 1, date: '2026-11-01', queueNum: 1, name: 'عاصم مصبح', nationalId: '401234567', phone: '0599000000', dept: 'جلدية', doctorName: 'admin', notes: 'متابعة دورية', status: 'completed', meds: ['دواء: اموكسيلين 500mg (عدد 1)'], payMethod: 'جوال بي (Jawwal Pay)', payRef: 'REF-80512', total: 0 },
-            { id: 2, date: '2026-11-01', queueNum: 2, name: 'عاصم مصبح', nationalId: '401234567', phone: '0599000000', dept: 'جلدية', doctorName: 'admin', notes: 'كشفية قسم الجلدية', status: 'completed', meds: ['دواء: فيتامين C (عدد 1)'], payMethod: 'جوال بي (Jawwal Pay)', payRef: 'REF-99510', total: 100 },
-            { id: 3, date: '2026-11-01', queueNum: 1, name: 'عاصم مصبح', nationalId: '401234567', phone: '0599000000', dept: 'أسنان', doctorName: 'admin', notes: 'تنظيف أسنان', status: 'waiting_doctor', meds: [], payMethod: '-', payRef: '-', total: 0 }
-        ];
-
-        function getStoredUsers() {
-            const stored = localStorage.getItem('clinic_users');
-            if (!stored) {
-                localStorage.setItem('clinic_users', JSON.stringify(systemDefaultUsers));
-                return systemDefaultUsers;
-            }
-            const parsed = JSON.parse(stored);
-            systemDefaultUsers.forEach(defUser => {
-                if (!parsed.some(u => u.username === defUser.username)) {
-                    parsed.push(defUser);
+        // جلب الحسابات المباشرة من قاعدة البيانات السحابية Supabase
+        async function fetchCloudUsers() {
+            try {
+                const { data, error } = await db.from('users').select('*');
+                if (error) {
+                    console.error('Supabase fetch error:', error);
+                    return [];
                 }
-            });
-            return parsed;
+                return data || [];
+            } catch (err) {
+                console.error(err);
+                return [];
+            }
         }
 
-        function deleteUser(username) {
+        async function deleteUser(username) {
             if (username === 'admin') return alert('لا يمكن حذف حساب المدير الرئيسي!');
-            if (confirm(`هل أنت تأكد من حذف حساب (${username})؟`)) {
-                let users = getStoredUsers();
-                users = users.filter(u => u.username !== username);
-                localStorage.setItem('clinic_users', JSON.stringify(users));
-                renderUsersTable();
-                alert(`تم حذف حساب (${username}) بنجاح.`);
+            if (confirm(`هل أنت تأكد من حذف حساب (${username}) نهائياً من كافة الأجهزة السحابية؟`)) {
+                const { error } = await db.from('users').delete().eq('username', username);
+                if (error) {
+                    alert('خطأ في حذف الحساب: ' + error.message);
+                } else {
+                    alert(`تم حذف حساب (${username}) سحابياً بنجاح!`);
+                    renderUsersTable();
+                }
             }
         }
 
         function getStoredPatients() {
             const stored = localStorage.getItem('clinic_patients');
-            if (!stored) {
-                localStorage.setItem('clinic_patients', JSON.stringify(defaultPatients));
-                return defaultPatients;
-            }
+            if (!stored) return [];
             return JSON.parse(stored);
         }
 
@@ -841,16 +827,28 @@
         let previousAccountantCount = 0;
         let previousPharmacyCount = 0;
 
-        function handleLogin(e) {
+        // دالة تسجيل الدخول السحابية المباشرة
+        async function handleLogin(e) {
             e.preventDefault();
-            const emailInput = document.getElementById('loginEmail').value.trim();
-            const passwordInput = document.getElementById('loginPassword').value.trim();
+            const btn = document.getElementById('loginBtn');
             const errorBox = document.getElementById('loginError');
+            btn.innerText = 'جاري التحقق سحابياً... ⏳';
+            btn.disabled = true;
 
-            const systemUsers = getStoredUsers();
-            const foundUser = systemUsers.find(u => u.username === emailInput && u.password === passwordInput);
+            const usernameInput = document.getElementById('loginEmail').value.trim();
+            const passwordInput = document.getElementById('loginPassword').value.trim();
 
-            if (foundUser) {
+            const { data: users, error } = await db
+                .from('users')
+                .select('*')
+                .eq('username', usernameInput)
+                .eq('password', passwordInput);
+
+            btn.innerText = 'دخول للنظام 🚀';
+            btn.disabled = false;
+
+            if (users && users.length > 0) {
+                const foundUser = users[0];
                 errorBox.style.display = 'none';
                 currentUser = foundUser;
 
@@ -859,9 +857,18 @@
                 document.getElementById('userInfo').classList.remove('hidden');
 
                 document.getElementById('userName').innerText = foundUser.username;
-                document.getElementById('userBadge').innerText = foundUser.roleName || foundUser.role;
+                document.getElementById('userBadge').innerText = foundUser.role || 'مستخدم';
 
-                const baseRole = foundUser.role.startsWith('doctor') ? 'doctor' : foundUser.role;
+                let baseRole = 'reception';
+                if (foundUser.username === 'admin' || foundUser.role.includes('مدير')) {
+                    baseRole = 'admin';
+                } else if (foundUser.role.includes('طبيب') || foundUser.role.startsWith('doctor')) {
+                    baseRole = 'doctor';
+                } else if (foundUser.role.includes('محاسب')) {
+                    baseRole = 'accountant';
+                } else if (foundUser.role.includes('صيدل')) {
+                    baseRole = 'pharmacy';
+                }
 
                 applyPermissions(baseRole);
                 switchTab(baseRole);
@@ -1779,18 +1786,21 @@
             }
         }
 
-        function addUserByAdmin(e) {
+        // إنشاء وتخزين الحساب سحابياً بـ Supabase
+        async function addUserByAdmin(e) {
             e.preventDefault();
+            const btn = document.getElementById('createUserBtn');
+            btn.innerText = 'جاري التخزين السحابي... ⏳';
+            btn.disabled = true;
+
             const username = document.getElementById('newUsername').value.trim();
             const password = document.getElementById('newUserPassword').value.trim();
             const selectedRole = document.getElementById('newUserRole').value;
 
-            let role = selectedRole;
+            let roleName = selectedRole;
             let dept = 'الكل';
-            let roleName = 'موظف';
 
             if (selectedRole.startsWith('doctor_')) {
-                role = 'doctor_' + selectedRole.split('_')[1];
                 dept = normalizeDept(selectedRole.split('_')[1]);
                 roleName = `طبيب (${dept})`;
             } else {
@@ -1798,27 +1808,41 @@
                 roleName = rolesMap[selectedRole] || selectedRole;
             }
 
-            const currentUsers = getStoredUsers();
-            currentUsers.push({ username, password, role, roleName, dept });
+            const { data, error } = await db
+                .from('users')
+                .insert([{ username, password, role: roleName, dept }]);
 
-            localStorage.setItem('clinic_users', JSON.stringify(currentUsers));
+            btn.innerText = 'إنشاء وتخزين الحساب بـ Supabase لكل الأجهزة ☁️';
+            btn.disabled = false;
 
-            alert(`تم إنشاء الحساب بنجاح!\nاسم المستخدم: ${username}\nالتخصص: ${roleName}`);
-            e.target.reset();
-            renderUsersTable();
+            if (error) {
+                alert('خطأ في التخزين السحابي: ' + error.message);
+            } else {
+                alert(`تم إنشاء الحساب سحابياً بنجاح! 🚀\nاسم المستخدم: ${username}\nالتخصص: ${roleName}\nيمكن الآن الدخول بهذا الحساب فوراً من أي جوال أو متصفح بدون مشاكل!`);
+                e.target.reset();
+                renderUsersTable();
+            }
         }
 
-        function renderUsersTable() {
+        async function renderUsersTable() {
             const tbody = document.getElementById('usersTable');
-            const systemUsers = getStoredUsers();
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">جاري جلب الحسابات السحابية... ⏳</td></tr>';
+            
+            const systemUsers = await fetchCloudUsers();
+            
+            if (systemUsers.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#94a3b8;">لا توجد حسابات مسجلة سحابياً</td></tr>';
+                return;
+            }
+
             tbody.innerHTML = systemUsers.map(u => `
                 <tr>
                     <td style="font-weight:bold;">${u.username}</td>
-                    <td><span class="badge">${u.roleName || u.role}</span></td>
+                    <td><span class="badge">${u.role || u.dept}</span></td>
                     <td>•••••• (${u.password})</td>
                     <td>
                         ${u.username !== 'admin' 
-                            ? `<button onclick="deleteUser('${u.username}')" class="btn-red">🗑️ حذف الحساب</button>` 
+                            ? `<button onclick="deleteUser('${u.username}')" class="btn-red">🗑️ حذف الحساب سحابياً</button>` 
                             : '<span style="color:#94a3b8; font-size:12px;">حساب رئيسي</span>'}
                     </td>
                 </tr>
