@@ -1365,10 +1365,10 @@
                 const method = (p.payMethod || '').toString();
                 const amount = parseFloat(p.total) || 0;
 
-                if (method.includes('جوال')) jawwalPay += amount;
-                else if (method.includes('بنك') || method.includes('فلسطين')) bank += amount;
-                else if (method.includes('محفظة')) wallet += amount;
-                else if (method.includes('نقداً') || method.includes('كاش')) cash += amount;
+                if (method.includes('جوال') || method.includes('Jawwal')) jawwalPay += amount;
+                else if (method.includes('بنك') || method.includes('فلسطين') || method.includes('Bank')) bank += amount;
+                else if (method.includes('محفظة') || method.includes('Wallet')) wallet += amount;
+                else if (method.includes('نقداً') || method.includes('كاش') || method.includes('Cash')) cash += amount;
             });
 
             const elJawwal = document.getElementById('accStatJawwalPay');
@@ -1505,10 +1505,10 @@
                     const method = (p.payMethod || '').toString();
                     const amount = parseFloat(p.total) || 0;
 
-                    if (method.includes('جوال')) dailyMap[dateKey].jawwalPay += amount;
-                    else if (method.includes('بنك') || method.includes('فلسطين')) dailyMap[dateKey].bank += amount;
-                    else if (method.includes('محفظة')) dailyMap[dateKey].wallet += amount;
-                    else if (method.includes('نقداً') || method.includes('كاش')) dailyMap[dateKey].cash += amount;
+                    if (method.includes('جوال') || method.includes('Jawwal')) dailyMap[dateKey].jawwalPay += amount;
+                    else if (method.includes('بنك') || method.includes('فلسطين') || method.includes('Bank')) dailyMap[dateKey].bank += amount;
+                    else if (method.includes('محفظة') || method.includes('Wallet')) dailyMap[dateKey].wallet += amount;
+                    else if (method.includes('نقداً') || method.includes('كاش') || method.includes('Cash')) dailyMap[dateKey].cash += amount;
 
                     dailyMap[dateKey].total += amount;
                     dailyMap[dateKey].patientsCount++;
@@ -1573,24 +1573,34 @@
 
         async function processPayment() {
             const id = document.getElementById('accSelect').value;
-            if(!id) return alert('اختر مريضاً أولاً');
+            if (!id) return alert('اختر مريضاً أولاً');
             
-            const finalAmount = parseFloat(document.getElementById('totalBillAmountInput').value);
+            const finalAmount = parseFloat(document.getElementById('totalBillAmountInput').value) || 0;
+            const selectedMethod = document.getElementById('payMethod').value;
+            const phoneVal = document.getElementById('payPhone').value || '-';
+            const refVal = document.getElementById('payRef').value || ('REF-' + Math.floor(Math.random() * 100000));
+
             const updatePayload = {
                 total: finalAmount,
-                payMethod: document.getElementById('payMethod').value,
-                payPhone: document.getElementById('payPhone').value || '-',
-                payRef: document.getElementById('payRef').value || ('REF-' + Math.floor(Math.random()*100000)),
+                payMethod: selectedMethod,
+                payPhone: phoneVal,
+                payRef: refVal,
                 status: 'waiting_pharmacy'
             };
 
-            await db.from('patients').update(updatePayload).eq('id', id);
-            alert(`تم تأكيد استلام الدفع وتحويل المريض للصيدلية بنجاح.`);
-            
+            const { error } = await db.from('patients').update(updatePayload).eq('id', id);
+
+            if (error) {
+                alert('حدث خطأ أثناء حفظ الدفع: ' + error.message);
+                return;
+            }
+
+            alert('تم تأكيد الدفع وتحويل المريض فوراً إلى الصيدلية! 🚀');
+
             document.getElementById('totalBillAmountInput').value = 0;
             document.getElementById('payPhone').value = '';
             document.getElementById('payRef').value = '';
-            
+
             await syncCloudData();
         }
 
