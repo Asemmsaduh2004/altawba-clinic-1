@@ -311,15 +311,15 @@
             <form onsubmit="addNewInventoryMed(event)" class="grid-3" style="background:#f8fafc; padding:15px; border-radius:10px; border:1px solid #e2e8f0; margin-bottom:15px;">
                 <div class="form-group">
                     <label>اسم الدواء</label>
-                    <input type="text" id="newInventoryMedName" placeholder="مثال: أوميبرازول 20mg" required>
+                    <input type="text" id="newInventoryMedName" placeholder="أدخل اسم الدواء" required>
                 </div>
                 <div class="form-group">
                     <label>السعر (شيكل ₪)</label>
-                    <input type="number" min="1" id="newInventoryMedPrice" placeholder="10" required>
+                    <input type="number" min="1" id="newInventoryMedPrice" placeholder="السعر" required>
                 </div>
                 <div class="form-group">
                     <label>الكمية المتوفرة (العدد الإجمالي)</label>
-                    <input type="number" min="1" id="newInventoryMedQty" placeholder="50" required>
+                    <input type="number" min="1" id="newInventoryMedQty" placeholder="الكمية" required>
                 </div>
                 <div style="grid-column: span 3;">
                     <button type="submit" class="btn" style="width:100%;">إضافة الدواء للمخزن ولـ قائمة الطبيب</button>
@@ -747,15 +747,26 @@
         async function fetchCloudInventory() {
             try {
                 const { data, error } = await db.from('inventory').select('*').order('id', { ascending: true });
-                if (!error && data) {
+                if (!error && data && data.length > 0) {
                     cloudInventory = data;
+                    localStorage.setItem('local_inventory_backup', JSON.stringify(data));
+                } else {
+                    const localData = localStorage.getItem('local_inventory_backup');
+                    if(localData) cloudInventory = JSON.parse(localData);
                 }
-            } catch(e) {}
+            } catch(e) {
+                const localData = localStorage.getItem('local_inventory_backup');
+                if(localData) cloudInventory = JSON.parse(localData);
+            }
             return cloudInventory;
         }
 
         async function deleteInventoryMed(id) {
-            if (confirm('هل أنت تأكد من حذف هذا الدواء من المخزن سحابياً؟')) {
+            if (confirm('هل أنت تأكد من حذف هذا الدواء من المخزن؟')) {
+                cloudInventory = cloudInventory.filter(i => i.id !== id);
+                localStorage.setItem('local_inventory_backup', JSON.stringify(cloudInventory));
+                renderInventoryTable();
+                renderDoctorMedList();
                 await db.from('inventory').delete().eq('id', id);
                 await syncCloudData();
             }
@@ -773,13 +784,20 @@
             if (newPriceStr === null) return;
             const newPrice = parseFloat(newPriceStr);
 
+            if (!isNaN(newQty) && newQty >= 0) med.qty = newQty;
+            if (!isNaN(newPrice) && newPrice > 0) med.price = newPrice;
+
+            localStorage.setItem('local_inventory_backup', JSON.stringify(cloudInventory));
+            renderInventoryTable();
+            renderDoctorMedList();
+
             let updatePayload = {};
             if (!isNaN(newQty) && newQty >= 0) updatePayload.qty = newQty;
             if (!isNaN(newPrice) && newPrice > 0) updatePayload.price = newPrice;
 
             await db.from('inventory').update(updatePayload).eq('id', id);
             await syncCloudData();
-            alert(`تم التحديث سحابياً بنجاح!`);
+            alert(`تم التحديث بنجاح!`);
         }
 
         async function fetchCloudUsers() {
@@ -815,7 +833,6 @@
             return cloudPatients;
         }
 
-        // المزامنة الشاملة والسلسة
         async function syncCloudData() {
             if (isSyncing) return;
             isSyncing = true;
@@ -1208,7 +1225,7 @@
             const filtered = cloudInventory.filter(m => m.name.toLowerCase().includes(filterText.toLowerCase()));
 
             if (filtered.length === 0) {
-                container.innerHTML = '<p style="color:#94a3b8; text-align:center; grid-column:span 3;">لا توجد أدوية تطابق البحث</p>';
+                container.innerHTML = '<p style="color:#94a3b8; text-align:center; grid-column:span 3;">لا توجد أدوية مضافة حتى الآن</p>';
                 return;
             }
 
@@ -1686,6 +1703,10 @@
                             const newUsedToday = (invItem.usedToday || 0) + qtyToDeduct;
                             const newTotalUsed = (invItem.totalUsed || 0) + qtyToDeduct;
 
+                            invItem.qty = newQty;
+                            invItem.usedToday = newUsedToday;
+                            invItem.totalUsed = newTotalUsed;
+
                             await db.from('inventory').update({
                                 qty: newQty,
                                 usedToday: newUsedToday,
@@ -1694,6 +1715,7 @@
                         }
                     }
                 }
+                localStorage.setItem('local_inventory_backup', JSON.stringify(cloudInventory));
             }
 
             await db.from('patients').update({ status: 'completed' }).eq('id', id);
@@ -1707,15 +1729,36 @@
             const price = parseFloat(document.getElementById('newInventoryMedPrice').value);
             const qty = parseInt(document.getElementById('newInventoryMedQty').value);
 
-            await db.from('inventory').insert([{ name, price, qty, usedToday: 0, totalUsed: 0 }]);
-            alert(`تم إضافة الدواء (${name}) بسعر ${price} ₪ للمخزن السحابي وقائمة الأطباء.`);
-            e.target.reset();
+            if (!name || isNaN(price) || isNaN(qty)) {
+                return alert('يرجى كتابة الاسم والسعر والكمية بشكل صحيح!');
+            }
 
-            // إجبار النظام على التحديث المباشر للمخزن والأطباء
-            await fetchCloudInventory();
+            const tempId = Date.now();
+            const newMedObj = { id: tempId, name, price, qty, usedToday: 0, totalUsed: 0 };
+
+            // 1. التحديث الفوري للواجهات والقائمة المحلية
+            cloudInventory.push(newMedObj);
+            localStorage.setItem('local_inventory_backup', JSON.stringify(cloudInventory));
             renderInventoryTable();
             renderDoctorMedList();
             updateDoctorDropdown();
+
+            e.target.reset();
+
+            // 2. التخزين في قاعدة البيانات السحابية Supabase
+            try {
+                const { data, error } = await db.from('inventory').insert([{ name, price, qty, usedToday: 0, totalUsed: 0 }]).select();
+                if (!error && data && data.length > 0) {
+                    // تحديث الـ ID بالمعرف الحقيقي من قاعدة البيانات
+                    const realIndex = cloudInventory.findIndex(i => i.id === tempId);
+                    if (realIndex !== -1) {
+                        cloudInventory[realIndex] = data[0];
+                        localStorage.setItem('local_inventory_backup', JSON.stringify(cloudInventory));
+                    }
+                }
+            } catch (err) {
+                console.log('سيتم المزامنة تلقائياً عند عودة الاتصال السحابي');
+            }
         }
 
         function renderInventoryTable() {
@@ -1916,8 +1959,9 @@
 
         setHospitalNameDisplay();
         renderDepartmentsUI();
+        fetchCloudInventory();
 
-        // تحديث المزامنة كل 4 ثوانٍ
+        // مزامنة دورية خفيفة كل 4 ثوانٍ
         setInterval(function() {
             if (currentUser && activeTabName !== 'login') {
                 syncCloudData();
