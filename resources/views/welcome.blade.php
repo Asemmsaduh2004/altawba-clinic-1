@@ -746,7 +746,7 @@
 
         async function fetchCloudInventory() {
             try {
-                const { data, error } = await db.from('inventory').select('*');
+                const { data, error } = await db.from('inventory').select('*').order('id', { ascending: true });
                 if (!error && data) {
                     cloudInventory = data;
                 }
@@ -902,7 +902,7 @@
             }
 
             previousDoctorCount = waitingDoctorCount;
-            previousAccountantCount = waitingPaymentCount;
+            previousAccountantCount = previousPaymentCount;
             previousPharmacyCount = waitingPharmacyCount;
 
             setBadge('badge-doctor', waitingDoctorCount);
@@ -1708,13 +1708,23 @@
             const qty = parseInt(document.getElementById('newInventoryMedQty').value);
 
             await db.from('inventory').insert([{ name, price, qty, usedToday: 0, totalUsed: 0 }]);
-            alert(`تم إضافة الدواء (${name}) بسعر ${price} ₪ للمخزن السحابي.`);
+            alert(`تم إضافة الدواء (${name}) بسعر ${price} ₪ للمخزن السحابي وقائمة الأطباء.`);
             e.target.reset();
-            await syncCloudData();
+            
+            // تحديث البيانات والقوائم فوراً
+            await fetchCloudInventory();
+            renderInventoryTable();
+            renderDoctorMedList();
+            updateDoctorDropdown();
         }
 
         function renderInventoryTable() {
             const tbody = document.getElementById('inventoryTable');
+            if (cloudInventory.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:15px;">لا توجد أدوية مضافة للمخزن بعد</td></tr>';
+                return;
+            }
+
             tbody.innerHTML = cloudInventory.map(i => `
                 <tr>
                     <td style="font-weight:bold; font-size:15px;">${i.name}</td>
@@ -1907,7 +1917,7 @@
         setHospitalNameDisplay();
         renderDepartmentsUI();
 
-        // تحديث خفيف وسلس كل 4 ثوانٍ يمنع التعليق والرمشة كلياً
+        // تحديث خفيف كل 4 ثوانٍ
         setInterval(function() {
             if (currentUser && activeTabName !== 'login') {
                 syncCloudData();
