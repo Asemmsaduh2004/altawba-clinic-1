@@ -902,7 +902,7 @@
             }
 
             previousDoctorCount = waitingDoctorCount;
-            previousAccountantCount = previousPaymentCount;
+            previousAccountantCount = waitingPaymentCount;
             previousPharmacyCount = waitingPharmacyCount;
 
             setBadge('badge-doctor', waitingDoctorCount);
@@ -1710,8 +1710,8 @@
             await db.from('inventory').insert([{ name, price, qty, usedToday: 0, totalUsed: 0 }]);
             alert(`تم إضافة الدواء (${name}) بسعر ${price} ₪ للمخزن السحابي وقائمة الأطباء.`);
             e.target.reset();
-            
-            // تحديث البيانات والقوائم فوراً
+
+            // إجبار النظام على التحديث المباشر للمخزن والأطباء
             await fetchCloudInventory();
             renderInventoryTable();
             renderDoctorMedList();
@@ -1917,7 +1917,7 @@
         setHospitalNameDisplay();
         renderDepartmentsUI();
 
-        // تحديث خفيف كل 4 ثوانٍ
+        // تحديث المزامنة كل 4 ثوانٍ
         setInterval(function() {
             if (currentUser && activeTabName !== 'login') {
                 syncCloudData();
