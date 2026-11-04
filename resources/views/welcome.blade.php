@@ -1365,8 +1365,8 @@
                 const method = (p.payMethod || '').toString();
                 const amount = parseFloat(p.total) || 0;
 
-                if (method.includes('جوال بي')) jawwalPay += amount;
-                else if (method.includes('بنك فلسطين')) bank += amount;
+                if (method.includes('جوال')) jawwalPay += amount;
+                else if (method.includes('بنك') || method.includes('فلسطين')) bank += amount;
                 else if (method.includes('محفظة')) wallet += amount;
                 else if (method.includes('نقداً') || method.includes('كاش')) cash += amount;
             });
@@ -1505,8 +1505,8 @@
                     const method = (p.payMethod || '').toString();
                     const amount = parseFloat(p.total) || 0;
 
-                    if (method.includes('جوال بي')) dailyMap[dateKey].jawwalPay += amount;
-                    else if (method.includes('بنك فلسطين')) dailyMap[dateKey].bank += amount;
+                    if (method.includes('جوال')) dailyMap[dateKey].jawwalPay += amount;
+                    else if (method.includes('بنك') || method.includes('فلسطين')) dailyMap[dateKey].bank += amount;
                     else if (method.includes('محفظة')) dailyMap[dateKey].wallet += amount;
                     else if (method.includes('نقداً') || method.includes('كاش')) dailyMap[dateKey].cash += amount;
 
