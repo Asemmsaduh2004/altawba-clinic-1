@@ -272,7 +272,7 @@
             </div>
 
             <div class="grid-3" style="margin-top:15px;">
-                <div class="form-group">
+                <div class="form-group" style="grid-column: span 3;">
                     <label>وسيلة الدفع</label>
                     <select id="payMethod">
                         <option value="جوال بي (Jawwal Pay)">جوال بي (Jawwal Pay)</option>
@@ -280,14 +280,6 @@
                         <option value="محفظة إلكترونية">محفظة إلكترونية</option>
                         <option value="نقداً">دفع نقدي</option>
                     </select>
-                </div>
-                <div class="form-group">
-                    <label>رقم جوال المحول</label>
-                    <input type="text" id="payPhone" class="phone-input" placeholder="059xxxxxxx">
-                </div>
-                <div class="form-group">
-                    <label>رقم الوصل / الحوالة</label>
-                    <input type="text" id="payRef" class="id-input" placeholder="Ref-100234">
                 </div>
             </div>
 
@@ -467,7 +459,6 @@
                             <th>القسم</th>
                             <th>الطبيب المعالج</th>
                             <th>وسيلة الدفع</th>
-                            <th>رقم الوصل</th>
                             <th>المبلغ</th>
                             <th>حالة الطلب</th>
                         </tr>
@@ -1407,7 +1398,7 @@
 
             let tableHTML = `<table border="1" style="direction:rtl; text-align:right;">
                 <tr style="background-color:#047857; color:white; font-weight:bold; font-size:16px;">
-                    <th colspan="9" style="text-align:center;">كشف السجل المالي والعمليات التفصيلي - ${currentHospName}</th>
+                    <th colspan="8" style="text-align:center;">كشف السجل المالي والعمليات التفصيلي - ${currentHospName}</th>
                 </tr>
                 <tr style="background-color:#047857; color:white; font-weight:bold;">
                     <th>التاريخ الفعلي</th>
@@ -1416,7 +1407,6 @@
                     <th>القسم</th>
                     <th>الطبيب المعالج</th>
                     <th>وسيلة الدفع</th>
-                    <th>رقم الوصل / الحوالة</th>
                     <th>المبلغ (₪)</th>
                     <th>حالة الطلب</th>
                 </tr>`;
@@ -1429,7 +1419,6 @@
                     <td>${p.dept}</td>
                     <td>${p.doctorName || '-'}</td>
                     <td>${p.payMethod || '-'}</td>
-                    <td>${p.payRef || '-'}</td>
                     <td style="font-weight:bold; color:#059669;">${p.total || 0} ₪</td>
                     <td>${statusMap[p.status] || p.status}</td>
                 </tr>`;
@@ -1577,14 +1566,11 @@
             
             const finalAmount = parseFloat(document.getElementById('totalBillAmountInput').value) || 0;
             const selectedMethod = document.getElementById('payMethod').value;
-            const phoneVal = document.getElementById('payPhone').value || '-';
-            const refVal = document.getElementById('payRef').value || ('REF-' + Math.floor(Math.random() * 100000));
 
+            // تحديث الحقول الموجودة فعلياً في جدول Supabase بدون إلحاق الحقول المفقودة
             const updatePayload = {
                 total: finalAmount,
                 payMethod: selectedMethod,
-                payPhone: phoneVal,
-                payRef: refVal,
                 status: 'waiting_pharmacy'
             };
 
@@ -1598,8 +1584,6 @@
             alert('تم تأكيد الدفع وتحويل المريض فوراً إلى الصيدلية! 🚀');
 
             document.getElementById('totalBillAmountInput').value = 0;
-            document.getElementById('payPhone').value = '';
-            document.getElementById('payRef').value = '';
 
             await syncCloudData();
         }
@@ -1840,7 +1824,7 @@
             if(!tbody) return;
 
             if(cloudPatients.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:#94a3b8;">لا توجد حالات مسجلة حتى الآن</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:#94a3b8;">لا توجد حالات مسجلة حتى الآن</td></tr>';
                 return;
             }
 
@@ -1859,7 +1843,6 @@
                     <td>${p.dept}</td>
                     <td style="color:#0284c7; font-weight:bold;">${p.doctorName || '-'}</td>
                     <td>${p.payMethod || '-'}</td>
-                    <td>${p.payRef || '-'}</td>
                     <td style="color:#059669; font-weight:bold;">${p.total} ₪</td>
                     <td><span class="badge" style="background:#e2e8f0; color:#334155;">${statusMap[p.status] || p.status}</span></td>
                 </tr>
