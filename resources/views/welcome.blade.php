@@ -217,7 +217,7 @@
 
             <div class="search-container">
                 <label style="color:#059669; font-weight:bold; font-size:16px;">🔍 بحث فوري عن الأدوية (اكتب أول حرف):</label>
-                <input type="text" id="medSearchInput" oninput="filterDoctorMeds()" placeholder="مثال: اكتب 'ب' أو 'امو'..." style="border: 2px solid #10b981; font-weight:bold; font-size:16px;">
+                <input type="text" id="medSearchInput" oninput="filterDoctorMeds()" placeholder="أدخل اسم الدواء للبحث..." style="border: 2px solid #10b981; font-weight:bold; font-size:16px;">
             </div>
 
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -311,15 +311,15 @@
             <form onsubmit="addNewInventoryMed(event)" class="grid-3" style="background:#f8fafc; padding:15px; border-radius:10px; border:1px solid #e2e8f0; margin-bottom:15px;">
                 <div class="form-group">
                     <label>اسم الدواء</label>
-                    <input type="text" id="newInventoryMedName" placeholder="أدخل اسم الدواء" required>
+                    <input type="text" id="newInventoryMedName" placeholder="اكتب اسم الدواء هنا..." required>
                 </div>
                 <div class="form-group">
                     <label>السعر (شيكل ₪)</label>
-                    <input type="number" min="1" id="newInventoryMedPrice" placeholder="السعر" required>
+                    <input type="number" min="1" id="newInventoryMedPrice" placeholder="اكتب السعر..." required>
                 </div>
                 <div class="form-group">
                     <label>الكمية المتوفرة (العدد الإجمالي)</label>
-                    <input type="number" min="1" id="newInventoryMedQty" placeholder="الكمية" required>
+                    <input type="number" min="1" id="newInventoryMedQty" placeholder="اكتب الكمية..." required>
                 </div>
                 <div style="grid-column: span 3;">
                     <button type="submit" class="btn" style="width:100%;">إضافة الدواء للمخزن ولـ قائمة الطبيب</button>
@@ -747,7 +747,7 @@
         async function fetchCloudInventory() {
             try {
                 const { data, error } = await db.from('inventory').select('*').order('id', { ascending: true });
-                if (!error && data && data.length > 0) {
+                if (!error && data) {
                     cloudInventory = data;
                     localStorage.setItem('local_inventory_backup', JSON.stringify(data));
                 } else {
@@ -768,7 +768,6 @@
                 renderInventoryTable();
                 renderDoctorMedList();
                 await db.from('inventory').delete().eq('id', id);
-                await syncCloudData();
             }
         }
 
@@ -796,7 +795,6 @@
             if (!isNaN(newPrice) && newPrice > 0) updatePayload.price = newPrice;
 
             await db.from('inventory').update(updatePayload).eq('id', id);
-            await syncCloudData();
             alert(`تم التحديث بنجاح!`);
         }
 
@@ -1736,7 +1734,7 @@
             const tempId = Date.now();
             const newMedObj = { id: tempId, name, price, qty, usedToday: 0, totalUsed: 0 };
 
-            // 1. التحديث الفوري للواجهات والقائمة المحلية
+            // 1. الإضافة المباشرة الفورية دون انتظار الرد
             cloudInventory.push(newMedObj);
             localStorage.setItem('local_inventory_backup', JSON.stringify(cloudInventory));
             renderInventoryTable();
@@ -1745,20 +1743,17 @@
 
             e.target.reset();
 
-            // 2. التخزين في قاعدة البيانات السحابية Supabase
+            // 2. الحفظ في Supabase
             try {
                 const { data, error } = await db.from('inventory').insert([{ name, price, qty, usedToday: 0, totalUsed: 0 }]).select();
                 if (!error && data && data.length > 0) {
-                    // تحديث الـ ID بالمعرف الحقيقي من قاعدة البيانات
-                    const realIndex = cloudInventory.findIndex(i => i.id === tempId);
-                    if (realIndex !== -1) {
-                        cloudInventory[realIndex] = data[0];
+                    const idx = cloudInventory.findIndex(i => i.id === tempId);
+                    if (idx !== -1) {
+                        cloudInventory[idx] = data[0];
                         localStorage.setItem('local_inventory_backup', JSON.stringify(cloudInventory));
                     }
                 }
-            } catch (err) {
-                console.log('سيتم المزامنة تلقائياً عند عودة الاتصال السحابي');
-            }
+            } catch (err) {}
         }
 
         function renderInventoryTable() {
@@ -1961,7 +1956,6 @@
         renderDepartmentsUI();
         fetchCloudInventory();
 
-        // مزامنة دورية خفيفة كل 4 ثوانٍ
         setInterval(function() {
             if (currentUser && activeTabName !== 'login') {
                 syncCloudData();
