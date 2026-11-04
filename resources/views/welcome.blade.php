@@ -732,7 +732,6 @@
             }).join('');
         }
 
-        // جلب الأدوية المباشر والوحيد من Supabase لقراءة نفس البيانات على جميع الأجهزة
         async function fetchCloudInventory() {
             try {
                 const { data, error } = await db.from('inventory').select('*').order('id', { ascending: true });
@@ -1363,11 +1362,13 @@
             let jawwalPay = 0, bank = 0, wallet = 0, cash = 0;
 
             paidPatients.forEach(p => {
-                const method = p.payMethod || '';
-                if (method.includes('جوال بي')) jawwalPay += (p.total || 0);
-                else if (method.includes('بنك فلسطين')) bank += (p.total || 0);
-                else if (method.includes('محفظة')) wallet += (p.total || 0);
-                else if (method.includes('نقداً')) cash += (p.total || 0);
+                const method = (p.payMethod || '').toString();
+                const amount = parseFloat(p.total) || 0;
+
+                if (method.includes('جوال بي')) jawwalPay += amount;
+                else if (method.includes('بنك فلسطين')) bank += amount;
+                else if (method.includes('محفظة')) wallet += amount;
+                else if (method.includes('نقداً') || method.includes('كاش')) cash += amount;
             });
 
             const elJawwal = document.getElementById('accStatJawwalPay');
@@ -1501,13 +1502,13 @@
                         dailyMap[dateKey] = { jawwalPay: 0, bank: 0, wallet: 0, cash: 0, total: 0, patientsCount: 0 };
                     }
 
-                    const method = p.payMethod || '';
+                    const method = (p.payMethod || '').toString();
                     const amount = parseFloat(p.total) || 0;
 
                     if (method.includes('جوال بي')) dailyMap[dateKey].jawwalPay += amount;
                     else if (method.includes('بنك فلسطين')) dailyMap[dateKey].bank += amount;
                     else if (method.includes('محفظة')) dailyMap[dateKey].wallet += amount;
-                    else if (method.includes('نقداً')) dailyMap[dateKey].cash += amount;
+                    else if (method.includes('نقداً') || method.includes('كاش')) dailyMap[dateKey].cash += amount;
 
                     dailyMap[dateKey].total += amount;
                     dailyMap[dateKey].patientsCount++;
