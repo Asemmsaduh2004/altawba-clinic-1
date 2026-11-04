@@ -519,7 +519,7 @@
         const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let cloudPatients = [];
-        let cloudInventory = JSON.parse(localStorage.getItem('local_inventory_backup') || '[]');
+        let cloudInventory = [];
         let isSyncing = false;
 
         function updateClock() {
@@ -732,28 +732,21 @@
             }).join('');
         }
 
-        // جلب الأدوية مباشرة من Supabase وتزامنها بشكل كامل
+        // جلب الأدوية المباشر والوحيد من Supabase لقراءة نفس البيانات على جميع الأجهزة
         async function fetchCloudInventory() {
             try {
                 const { data, error } = await db.from('inventory').select('*').order('id', { ascending: true });
                 if (!error && data) {
                     cloudInventory = data;
-                    localStorage.setItem('local_inventory_backup', JSON.stringify(data));
                 }
             } catch(e) {}
-            if (!cloudInventory || cloudInventory.length === 0) {
-                cloudInventory = JSON.parse(localStorage.getItem('local_inventory_backup') || '[]');
-            }
             return cloudInventory;
         }
 
         async function deleteInventoryMed(id) {
             if (confirm('هل أنت تأكد من حذف هذا الدواء من المخزن؟')) {
-                cloudInventory = cloudInventory.filter(i => i.id !== id && i.id != id);
-                localStorage.setItem('local_inventory_backup', JSON.stringify(cloudInventory));
-                renderInventoryTable();
-                renderDoctorMedList();
-                try { await db.from('inventory').delete().eq('id', id); } catch(e){}
+                await db.from('inventory').delete().eq('id', id);
+                await syncCloudData();
             }
         }
 
@@ -769,18 +762,12 @@
             if (newPriceStr === null) return;
             const newPrice = parseFloat(newPriceStr);
 
-            if (!isNaN(newQty) && newQty >= 0) med.qty = newQty;
-            if (!isNaN(newPrice) && newPrice > 0) med.price = newPrice;
-
-            localStorage.setItem('local_inventory_backup', JSON.stringify(cloudInventory));
-            renderInventoryTable();
-            renderDoctorMedList();
-
             let updatePayload = {};
             if (!isNaN(newQty) && newQty >= 0) updatePayload.qty = newQty;
             if (!isNaN(newPrice) && newPrice > 0) updatePayload.price = newPrice;
 
-            try { await db.from('inventory').update(updatePayload).eq('id', id); } catch(e){}
+            await db.from('inventory').update(updatePayload).eq('id', id);
+            await syncCloudData();
             alert(`تم التحديث بنجاح!`);
         }
 
@@ -1686,15 +1673,12 @@
                         const invItem = cloudInventory.find(i => i.name === medName);
                         if (invItem) {
                             const newQty = Math.max(0, invItem.qty - qtyToDeduct);
-                            invItem.qty = newQty;
-
                             try {
                                 await db.from('inventory').update({ qty: newQty }).eq('id', invItem.id);
                             } catch(e){}
                         }
                     }
                 }
-                localStorage.setItem('local_inventory_backup', JSON.stringify(cloudInventory));
             }
 
             await db.from('patients').update({ status: 'completed' }).eq('id', id);
@@ -1720,30 +1704,19 @@
             submitBtn.innerText = 'جاري التخزين السحابي... ⏳';
             submitBtn.disabled = true;
 
-            try {
-                // إرسال كائن مبسط بالأسماء القياسية لجدول inventory في Supabase
-                const { data, error } = await db.from('inventory').insert([{ name, price, qty }]).select();
-                
-                if (error) {
-                    alert('تنبيه في التخزين السحابي: ' + error.message);
-                } else if (data && data.length > 0) {
-                    cloudInventory.push(data[0]);
-                } else {
-                    cloudInventory.push({ id: Date.now(), name, price, qty });
-                }
-            } catch (err) {
-                cloudInventory.push({ id: Date.now(), name, price, qty });
-            }
+            const { error } = await db.from('inventory').insert([{ name: name, price: price, qty: qty }]);
 
-            localStorage.setItem('local_inventory_backup', JSON.stringify(cloudInventory));
-            
-            renderInventoryTable();
-            renderDoctorMedList();
-            updateDoctorDropdown();
-
-            e.target.reset();
             submitBtn.innerText = 'إضافة الدواء للمخزن ولـ قائمة الطبيب';
             submitBtn.disabled = false;
+
+            if (error) {
+                alert('خطأ أثناء التخزين السحابي: ' + error.message);
+                return;
+            }
+
+            e.target.reset();
+            await syncCloudData();
+            alert(`تم حفظ دواء (${name}) سحابياً وتعميمه على كافة الأجهزة بنجاح! 🚀`);
         }
 
         function renderInventoryTable() {
@@ -1954,7 +1927,7 @@
 
         setHospitalNameDisplay();
         renderDepartmentsUI();
-        fetchCloudInventory();
+        syncCloudData();
 
         setInterval(function() {
             if (currentUser && activeTabName !== 'login') {
