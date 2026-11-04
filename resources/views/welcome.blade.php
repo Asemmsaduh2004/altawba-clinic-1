@@ -514,13 +514,12 @@
     </main>
 
     <script>
-        // إعداد الاتصال بقاعدة البيانات السحابية Supabase
         const SUPABASE_URL = 'https://ookoogducpncijszgjys.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_uoWj7tjL5JSWpqg1SA7MUw_VKoJ-FI3';
         const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let cloudPatients = [];
-        let cloudInventory = [];
+        let cloudInventory = JSON.parse(localStorage.getItem('local_inventory_backup') || '[]');
         let isSyncing = false;
 
         function updateClock() {
@@ -561,15 +560,9 @@
                     let height = img.height;
 
                     if (width > height) {
-                        if (width > maxSize) {
-                            height *= maxSize / width;
-                            width = maxSize;
-                        }
+                        if (width > maxSize) { height *= maxSize / width; width = maxSize; }
                     } else {
-                        if (height > maxSize) {
-                            width *= maxSize / height;
-                            height = maxSize;
-                        }
+                        if (height > maxSize) { width *= maxSize / height; height = maxSize; }
                     }
 
                     canvas.width = width;
@@ -581,9 +574,7 @@
                         localStorage.setItem('clinic_hospital_logo', compressedBase64);
                         renderStoredLogo();
                         alert('تم حفظ الشعار بنجاح!');
-                    } catch (err) {
-                        alert('حجم الصورة كبير جداً.');
-                    }
+                    } catch (err) { alert('حجم الصورة كبير جداً.'); }
                 };
                 img.src = event.target.result;
             };
@@ -629,9 +620,7 @@
                 return defaultDepts;
             }
             let parsed = JSON.parse(stored);
-            defaultDepts.forEach(d => {
-                if(!parsed.includes(d)) parsed.push(d);
-            });
+            defaultDepts.forEach(d => { if(!parsed.includes(d)) parsed.push(d); });
             return parsed;
         }
 
@@ -670,9 +659,7 @@
             if (receptionSelect) {
                 const currentVal = receptionSelect.value;
                 receptionSelect.innerHTML = depts.map(d => `<option value="${d}">قسم ${d}</option>`).join('');
-                if (currentVal && depts.includes(currentVal)) {
-                    receptionSelect.value = currentVal;
-                }
+                if (currentVal && depts.includes(currentVal)) { receptionSelect.value = currentVal; }
             }
 
             const userRoleSelect = document.getElementById('newUserRole');
@@ -744,35 +731,46 @@
             }).join('');
         }
 
+        // جلب وتجميع الأدوية لعدم مسح المخزون المحلي إطلاقاً
         async function fetchCloudInventory() {
             try {
                 const { data, error } = await db.from('inventory').select('*').order('id', { ascending: true });
-                if (!error && data) {
-                    cloudInventory = data;
-                    localStorage.setItem('local_inventory_backup', JSON.stringify(data));
-                } else {
-                    const localData = localStorage.getItem('local_inventory_backup');
-                    if(localData) cloudInventory = JSON.parse(localData);
+                if (!error && data && data.length > 0) {
+                    const localBackup = JSON.parse(localStorage.getItem('local_inventory_backup') || '[]');
+                    
+                    // دمج البيانات السحابية مع الأدوية المحلية التي لم تُحفظ سحابياً بعد
+                    data.forEach(remoteItem => {
+                        const localIndex = localBackup.findIndex(l => l.name === remoteItem.name);
+                        if (localIndex === -1) {
+                            localBackup.push(remoteItem);
+                        } else {
+                            localBackup[localIndex] = remoteItem;
+                        }
+                    });
+                    
+                    cloudInventory = localBackup;
+                    localStorage.setItem('local_inventory_backup', JSON.stringify(cloudInventory));
                 }
-            } catch(e) {
-                const localData = localStorage.getItem('local_inventory_backup');
-                if(localData) cloudInventory = JSON.parse(localData);
+            } catch(e) {}
+            
+            if (!cloudInventory || cloudInventory.length === 0) {
+                cloudInventory = JSON.parse(localStorage.getItem('local_inventory_backup') || '[]');
             }
             return cloudInventory;
         }
 
         async function deleteInventoryMed(id) {
             if (confirm('هل أنت تأكد من حذف هذا الدواء من المخزن؟')) {
-                cloudInventory = cloudInventory.filter(i => i.id !== id);
+                cloudInventory = cloudInventory.filter(i => i.id !== id && i.id != id);
                 localStorage.setItem('local_inventory_backup', JSON.stringify(cloudInventory));
                 renderInventoryTable();
                 renderDoctorMedList();
-                await db.from('inventory').delete().eq('id', id);
+                try { await db.from('inventory').delete().eq('id', id); } catch(e){}
             }
         }
 
         async function editInventoryMed(id) {
-            const med = cloudInventory.find(i => i.id === id);
+            const med = cloudInventory.find(i => i.id == id);
             if (!med) return;
 
             const addQtyStr = prompt(`تعديل/تزويد مخزون دواء (${med.name}):\nالكمية المتبقية حالياً: [${med.qty} عبوة].\n\nأدخل الكمية الجديدة الإجمالية:`, med.qty);
@@ -794,7 +792,7 @@
             if (!isNaN(newQty) && newQty >= 0) updatePayload.qty = newQty;
             if (!isNaN(newPrice) && newPrice > 0) updatePayload.price = newPrice;
 
-            await db.from('inventory').update(updatePayload).eq('id', id);
+            try { await db.from('inventory').update(updatePayload).eq('id', id); } catch(e){}
             alert(`تم التحديث بنجاح!`);
         }
 
@@ -803,9 +801,7 @@
                 const { data, error } = await db.from('users').select('*');
                 if (error) return [];
                 return data || [];
-            } catch (err) {
-                return [];
-            }
+            } catch (err) { return []; }
         }
 
         async function deleteUser(username) {
@@ -984,7 +980,7 @@
             const activeNav = document.getElementById(`nav-${tab}`);
             if(activeNav) activeNav.classList.add('active');
             
-            syncCloudData();
+            refreshActiveScreenData();
         }
 
         function refreshActiveScreenData() {
@@ -1540,7 +1536,6 @@
                 }
             });
 
-            const activeDaysCount = Object.keys(dailyMap).length;
             const currentHospName = getStoredHospitalName();
 
             let tableHTML = `<table border="1" style="direction:rtl; text-align:right;">
@@ -1689,7 +1684,7 @@
                         let medName = item.replace("دواء: ", "").trim();
                         let qtyToDeduct = 1;
 
-                        const qtyMatch = medName.match(/\(عدد \d+\)/);
+                        const qtyMatch = medName.match(/\(عدد \d+\)/, "").trim();
                         if (qtyMatch) {
                             qtyToDeduct = parseInt(qtyMatch[1]);
                             medName = medName.replace(/\(عدد \d+\)/, "").trim();
@@ -1705,11 +1700,13 @@
                             invItem.usedToday = newUsedToday;
                             invItem.totalUsed = newTotalUsed;
 
-                            await db.from('inventory').update({
-                                qty: newQty,
-                                usedToday: newUsedToday,
-                                totalUsed: newTotalUsed
-                            }).eq('id', invItem.id);
+                            try {
+                                await db.from('inventory').update({
+                                    qty: newQty,
+                                    usedToday: newUsedToday,
+                                    totalUsed: newTotalUsed
+                                }).eq('id', invItem.id);
+                            } catch(e){}
                         }
                     }
                 }
@@ -1734,16 +1731,17 @@
             const tempId = Date.now();
             const newMedObj = { id: tempId, name, price, qty, usedToday: 0, totalUsed: 0 };
 
-            // 1. الإضافة المباشرة الفورية دون انتظار الرد
+            // الإضافة والتثبيت الفوري في المحافظ المحلية والمصفوفات
             cloudInventory.push(newMedObj);
             localStorage.setItem('local_inventory_backup', JSON.stringify(cloudInventory));
+            
             renderInventoryTable();
             renderDoctorMedList();
             updateDoctorDropdown();
 
             e.target.reset();
 
-            // 2. الحفظ في Supabase
+            // المحاولة السحابية بدون تعطيل الرندر في حالة البطء
             try {
                 const { data, error } = await db.from('inventory').insert([{ name, price, qty, usedToday: 0, totalUsed: 0 }]).select();
                 if (!error && data && data.length > 0) {
@@ -1758,7 +1756,7 @@
 
         function renderInventoryTable() {
             const tbody = document.getElementById('inventoryTable');
-            if (cloudInventory.length === 0) {
+            if (!cloudInventory || cloudInventory.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:15px;">لا توجد أدوية مضافة للمخزن بعد</td></tr>';
                 return;
             }
@@ -1779,7 +1777,7 @@
         }
 
         function exportInventoryToExcel() {
-            if(cloudInventory.length === 0) return alert('لا توجد أدوية بالتصدير!');
+            if(!cloudInventory || cloudInventory.length === 0) return alert('لا توجد أدوية بالتصدير!');
 
             const currentHospName = getStoredHospitalName();
             let tableHTML = `<table border="1" style="direction:rtl; text-align:right;">
