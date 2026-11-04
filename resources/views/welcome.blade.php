@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="google-site-verification" content="5Vyrh1i38VuZqCT6wF_6l7vu9rFENBrnUGr9wlBCX1U" />
     <title>Medicare System</title>
     <!-- مكتبة الربط السحابي Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -132,7 +131,7 @@
         <!-- SCREEN 2: RECEPTION -->
         <div id="screen-reception" class="card hidden">
             <h2>🎫 حجز تذكرة دخول جديدة</h2>
-            <form onsubmit="addPatientTicket(event)" class="grid-3">
+            <form onsubmit="addPatientTicket(event)" class="grid-3" style="margin-bottom: 25px;">
                 <div class="form-group">
                     <label>اسم المريض رباعي</label>
                     <input type="text" id="patientName" required placeholder="مثال: عاصم مصبح">
@@ -153,6 +152,29 @@
                     <button type="submit" class="btn" style="width:100%;">إصدار تذكرة وتحديد رقم الدور</button>
                 </div>
             </form>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px; border-top: 2px solid #ecfdf5; padding-top: 15px;">
+                <h2>📋 مرضى اليوم المسجلين بالانتظار (قائمة الاستقبال)</h2>
+                <div class="no-print" style="display:flex; gap:8px;">
+                    <button onclick="exportReceptionToExcel()" class="btn" style="background:#15803d; padding:8px 14px; font-size:13px;">📥 تصدير قائمة اليوم Excel</button>
+                    <button onclick="window.print()" class="btn btn-blue" style="padding:8px 14px; font-size:13px;">🖨️ طباعة القائمة</button>
+                </div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>رقم الدور</th>
+                        <th>اسم المريض</th>
+                        <th>رقم الهوية</th>
+                        <th>رقم الجوال</th>
+                        <th>القسم</th>
+                        <th>الحالة بالحركة</th>
+                        <th class="no-print">إجراءات</th>
+                    </tr>
+                </thead>
+                <tbody id="receptionPatientsTable"></tbody>
+            </table>
         </div>
 
         <!-- SCREEN 3: DOCTOR -->
@@ -167,8 +189,8 @@
                 </div>
                 <div class="med-box" style="text-align:center;">
                     <p style="font-size:12px; color:#64748b;">تنبيه الصوت 🔔:</p>
-                    <p style="font-weight:bold; color:#059669; font-size:13px;">تنبيه مسموع بدقة عند وصول مريض</p>
-                    <button type="button" onclick="playNotificationSound()" style="margin-top:6px; background:#e0f2fe; border:1px solid #0284c7; color:#0369a1; padding:3px 10px; border-radius:6px; font-size:11px; font-weight:bold; cursor:pointer;">🔊 تجربة جرس الصوت</button>
+                    <p style="font-weight:bold; color:#059669; font-size:13px;">نغمة تنبيه هادئة</p>
+                    <button type="button" onclick="playNotificationSound()" style="margin-top:6px; background:#e0f2fe; border:1px solid #0284c7; color:#0369a1; padding:3px 10px; border-radius:6px; font-size:11px; font-weight:bold; cursor:pointer;">🔊 تجربة النغمة</button>
                 </div>
             </div>
 
@@ -497,6 +519,10 @@
         const SUPABASE_KEY = 'sb_publishable_uoWj7tjL5JSWpqg1SA7MUw_VKoJ-FI3';
         const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+        let cloudPatients = [];
+        let cloudInventory = [];
+        let isSyncing = false;
+
         function updateClock() {
             const now = new Date();
             const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
@@ -554,9 +580,9 @@
                     try {
                         localStorage.setItem('clinic_hospital_logo', compressedBase64);
                         renderStoredLogo();
-                        alert('تم ضغط وحفظ الشعار دائمًا بالنظام بنجاح!');
+                        alert('تم حفظ الشعار بنجاح!');
                     } catch (err) {
-                        alert('حجم الصورة كبير جداً، يرجى اختيار صورة أصغر حافزاً للتخزين.');
+                        alert('حجم الصورة كبير جداً.');
                     }
                 };
                 img.src = event.target.result;
@@ -565,7 +591,7 @@
         }
 
         function removeStoredLogo() {
-            if (confirm('هل تأكد من حذف الشعار المحفوظ والعودة للأيقونة الافتراضية؟')) {
+            if (confirm('هل أنت تأكد من حذف الشعار المحفوظ والعودة للأيقونة الافتراضية؟')) {
                 localStorage.removeItem('clinic_hospital_logo');
                 renderStoredLogo();
                 alert('تم حذف الشعار واستعادة الأيقونة الافتراضية.');
@@ -617,7 +643,7 @@
         function addNewDepartment(e) {
             e.preventDefault();
             const input = document.getElementById('newDeptName');
-            const name = input.value.trim().replace('قسم', '').trim();
+            const name = normalizeDept(input.value.trim());
             if(!name) return;
 
             const depts = getStoredDepartments();
@@ -625,7 +651,7 @@
 
             depts.push(name);
             saveDepartments(depts);
-            alert(`تم إضافة (قسم ${name}) بنجاح والنظام جاهز الآن لحجز المرضى به وتوجيههم للطبيب.`);
+            alert(`تم إضافة (قسم ${name}) بنجاح.`);
             input.value = '';
         }
 
@@ -677,33 +703,25 @@
                 if (!AudioCtx) return;
                 const ctx = new AudioCtx();
 
-                const osc1 = ctx.createOscillator();
-                const gain1 = ctx.createGain();
-                osc1.type = 'sine';
-                osc1.frequency.setValueAtTime(880, ctx.currentTime);
-                gain1.gain.setValueAtTime(0.8, ctx.currentTime);
-                gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-                osc1.connect(gain1);
-                gain1.connect(ctx.destination);
-                osc1.start(ctx.currentTime);
-                osc1.stop(ctx.currentTime + 0.4);
-
-                const osc2 = ctx.createOscillator();
-                const gain2 = ctx.createGain();
-                osc2.type = 'sine';
-                osc2.frequency.setValueAtTime(659.25, ctx.currentTime + 0.15);
-                gain2.gain.setValueAtTime(0.9, ctx.currentTime + 0.15);
-                gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.7);
-                osc2.connect(gain2);
-                gain2.connect(ctx.destination);
-                osc2.start(ctx.currentTime + 0.15);
-                osc2.stop(ctx.currentTime + 0.7);
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((freq, index) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, ctx.currentTime + (index * 0.12));
+                    gain.gain.setValueAtTime(0.3, ctx.currentTime + (index * 0.12));
+                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (index * 0.12) + 0.4);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(ctx.currentTime + (index * 0.12));
+                    osc.stop(ctx.currentTime + (index * 0.12) + 0.4);
+                });
             } catch(e){}
         }
 
         function normalizeDept(dept) {
             if (!dept) return '';
-            return dept.replace('قسم', '').trim();
+            return dept.toString().replace(/^قسم\s*/, '').trim();
         }
 
         const defaultDentalServices = [
@@ -726,99 +744,85 @@
             }).join('');
         }
 
-        const defaultInventory = [
-            { id: 1, name: 'اموكسيلين 500mg', price: 10, qty: 100, usedToday: 0, totalUsed: 0 },
-            { id: 2, name: 'براسيتامول 500mg', price: 10, qty: 150, usedToday: 0, totalUsed: 0 },
-            { id: 3, name: 'ايبروفين 400mg', price: 10, qty: 80, usedToday: 0, totalUsed: 0 },
-            { id: 4, name: 'فيتامين C', price: 100, qty: 60, usedToday: 0, totalUsed: 0 }
-        ];
-
-        function getStoredInventory() {
-            const stored = localStorage.getItem('clinic_inventory');
-            if (!stored) {
-                localStorage.setItem('clinic_inventory', JSON.stringify(defaultInventory));
-                return defaultInventory;
-            }
-            return JSON.parse(stored);
+        async function fetchCloudInventory() {
+            try {
+                const { data, error } = await db.from('inventory').select('*');
+                if (!error && data) {
+                    cloudInventory = data;
+                }
+            } catch(e) {}
+            return cloudInventory;
         }
 
-        function saveInventory(inv) {
-            localStorage.setItem('clinic_inventory', JSON.stringify(inv));
-        }
-
-        function deleteInventoryMed(id) {
-            if (confirm('هل أنت تأكد من حذف هذا الدواء من المخزن؟')) {
-                let inventory = getStoredInventory();
-                inventory = inventory.filter(i => i.id !== id);
-                saveInventory(inventory);
-                renderInventoryTable();
-                renderDoctorMedList();
+        async function deleteInventoryMed(id) {
+            if (confirm('هل أنت تأكد من حذف هذا الدواء من المخزن سحابياً؟')) {
+                await db.from('inventory').delete().eq('id', id);
+                await syncCloudData();
             }
         }
 
-        function editInventoryMed(id) {
-            const inventory = getStoredInventory();
-            const med = inventory.find(i => i.id === id);
+        async function editInventoryMed(id) {
+            const med = cloudInventory.find(i => i.id === id);
             if (!med) return;
 
-            const addQtyStr = prompt(`تعديل/تزويد مخزون دواء (${med.name}):\nالكمية المتبقية حالياً: [${med.qty} عبوة].\n\nأدخل الكمية الجديدة الإضافية للتزويد (أو الكمية الإجمالية الجديدة):`, "50");
+            const addQtyStr = prompt(`تعديل/تزويد مخزون دواء (${med.name}):\nالكمية المتبقية حالياً: [${med.qty} عبوة].\n\nأدخل الكمية الجديدة الإجمالية:`, med.qty);
             if (addQtyStr === null) return;
-            const addQty = parseInt(addQtyStr);
+            const newQty = parseInt(addQtyStr);
 
             const newPriceStr = prompt(`أدخل السعر الجديد للدواء (شيكل ₪):`, med.price);
             if (newPriceStr === null) return;
             const newPrice = parseFloat(newPriceStr);
 
-            if (!isNaN(addQty) && addQty >= 0) {
-                med.qty = addQty;
-            }
-            if (!isNaN(newPrice) && newPrice > 0) {
-                med.price = newPrice;
-            }
+            let updatePayload = {};
+            if (!isNaN(newQty) && newQty >= 0) updatePayload.qty = newQty;
+            if (!isNaN(newPrice) && newPrice > 0) updatePayload.price = newPrice;
 
-            saveInventory(inventory);
-            alert(`تم التحديث بنجاح! الكمية المتاحة لـ (${med.name}) أصبحت: ${med.qty} عبوة، والسعر: ${med.price} ₪.`);
-            renderInventoryTable();
-            renderDoctorMedList();
+            await db.from('inventory').update(updatePayload).eq('id', id);
+            await syncCloudData();
+            alert(`تم التحديث سحابياً بنجاح!`);
         }
 
-        // جلب الحسابات المباشرة من قاعدة البيانات السحابية Supabase
         async function fetchCloudUsers() {
             try {
                 const { data, error } = await db.from('users').select('*');
-                if (error) {
-                    console.error('Supabase fetch error:', error);
-                    return [];
-                }
+                if (error) return [];
                 return data || [];
             } catch (err) {
-                console.error(err);
                 return [];
             }
         }
 
         async function deleteUser(username) {
             if (username === 'admin') return alert('لا يمكن حذف حساب المدير الرئيسي!');
-            if (confirm(`هل أنت تأكد من حذف حساب (${username}) نهائياً من كافة الأجهزة السحابية؟`)) {
+            if (confirm(`هل أنت تأكد من حذف حساب (${username}) نهائياً من Supabase؟`)) {
                 const { error } = await db.from('users').delete().eq('username', username);
                 if (error) {
                     alert('خطأ في حذف الحساب: ' + error.message);
                 } else {
-                    alert(`تم حذف حساب (${username}) سحابياً بنجاح!`);
+                    alert(`تم حذف الحساب سحابياً بنجاح!`);
                     renderUsersTable();
                 }
             }
         }
 
-        function getStoredPatients() {
-            const stored = localStorage.getItem('clinic_patients');
-            if (!stored) return [];
-            return JSON.parse(stored);
+        async function fetchCloudPatients() {
+            try {
+                const { data, error } = await db.from('patients').select('*').order('queueNum', { ascending: true });
+                if (!error && data) {
+                    cloudPatients = data;
+                }
+            } catch(e) {}
+            return cloudPatients;
         }
 
-        function savePatients(patients) {
-            localStorage.setItem('clinic_patients', JSON.stringify(patients));
+        // المزامنة الشاملة والسلسة
+        async function syncCloudData() {
+            if (isSyncing) return;
+            isSyncing = true;
+            await fetchCloudPatients();
+            await fetchCloudInventory();
             refreshActiveScreenData();
+            isSyncing = false;
         }
 
         let currentUser = null;
@@ -827,7 +831,6 @@
         let previousAccountantCount = 0;
         let previousPharmacyCount = 0;
 
-        // دالة تسجيل الدخول السحابية المباشرة
         async function handleLogin(e) {
             e.preventDefault();
             const btn = document.getElementById('loginBtn');
@@ -878,20 +881,19 @@
         }
 
         function updateNotificationBadges() {
-            const patients = getStoredPatients();
-
             let doctorDept = 'الكل';
             if (currentUser && currentUser.dept) {
                 doctorDept = normalizeDept(currentUser.dept);
             }
-            const waitingDoctorCount = patients.filter(p => {
+            const waitingDoctorCount = cloudPatients.filter(p => {
                 if (p.status !== 'waiting_doctor') return false;
                 if (doctorDept === 'الكل') return true;
                 return normalizeDept(p.dept) === doctorDept;
             }).length;
 
-            const waitingPaymentCount = patients.filter(p => p.status === 'waiting_payment').length;
-            const waitingPharmacyCount = patients.filter(p => p.status === 'waiting_pharmacy').length;
+            const waitingPaymentCount = cloudPatients.filter(p => p.status === 'waiting_payment').length;
+            const waitingPharmacyCount = cloudPatients.filter(p => p.status === 'waiting_pharmacy').length;
+            const activeReceptionCount = cloudPatients.filter(p => p.status !== 'completed').length;
 
             if (waitingDoctorCount > previousDoctorCount || 
                 waitingPaymentCount > previousAccountantCount || 
@@ -906,7 +908,7 @@
             setBadge('badge-doctor', waitingDoctorCount);
             setBadge('badge-accountant', waitingPaymentCount);
             setBadge('badge-pharmacy', waitingPharmacyCount);
-            setBadge('badge-reception', patients.length);
+            setBadge('badge-reception', activeReceptionCount);
         }
 
         function setBadge(id, count) {
@@ -967,17 +969,19 @@
             const activeNav = document.getElementById(`nav-${tab}`);
             if(activeNav) activeNav.classList.add('active');
             
-            refreshActiveScreenData();
+            syncCloudData();
         }
 
         function refreshActiveScreenData() {
             setHospitalNameDisplay();
 
+            if(activeTabName === 'reception') {
+                renderReceptionTable();
+            }
             if(activeTabName === 'doctor') {
                 updateDoctorDropdown();
                 renderDoctorMedList();
                 renderDentalServices();
-                handlePatientSelectionChange();
             }
             if(activeTabName === 'accountant') {
                 updateAccountantDropdown();
@@ -1005,7 +1009,6 @@
 
         function handlePatientSelectionChange() {
             resetSelectionState();
-            
             const selectedPatientId = document.getElementById('docPatientSelect').value;
             const dentalBox = document.getElementById('dentalServicesBox');
             
@@ -1014,9 +1017,7 @@
                 return;
             }
 
-            const patients = getStoredPatients();
-            const patient = patients.find(p => p.id == selectedPatientId);
-
+            const patient = cloudPatients.find(p => p.id == selectedPatientId);
             if (patient && normalizeDept(patient.dept) === 'أسنان') {
                 dentalBox.classList.remove('hidden');
             } else {
@@ -1024,24 +1025,22 @@
             }
         }
 
-        function addPatientTicket(e) {
+        async function addPatientTicket(e) {
             e.preventDefault();
-            const patients = getStoredPatients();
             const deptSelect = document.getElementById('patientDept');
             const selectedDeptValue = deptSelect ? deptSelect.value : '';
             const deptName = normalizeDept(selectedDeptValue);
             
             const todayStr = new Date().toISOString().slice(0, 10);
-            const sameDeptTodayCount = patients.filter(p => normalizeDept(p.dept) === deptName && (p.date === todayStr || !p.date)).length;
+            const sameDeptTodayCount = cloudPatients.filter(p => normalizeDept(p.dept) === deptName && (p.date === todayStr || !p.date)).length;
             const queueNumber = sameDeptTodayCount + 1;
 
-            const patient = {
-                id: Date.now(),
+            const newPatient = {
                 date: todayStr,
                 queueNum: queueNumber,
-                name: document.getElementById('patientName').value,
-                nationalId: document.getElementById('patientID').value,
-                phone: document.getElementById('patientPhone').value,
+                name: document.getElementById('patientName').value.trim(),
+                nationalId: document.getElementById('patientID').value.trim(),
+                phone: document.getElementById('patientPhone').value.trim(),
                 dept: deptName,
                 doctorName: '-',
                 notes: '',
@@ -1049,18 +1048,105 @@
                 meds: [],
                 total: 0
             };
-            patients.push(patient);
-            savePatients(patients);
 
-            alert(`تم تسجيل المريض (${patient.name}) بنجاح.\nالتاريخ: ${patient.date}\nالقسم: ${patient.dept}\nرقم الدور: [${patient.queueNum}]`);
+            const { error } = await db.from('patients').insert([newPatient]);
+            if (error) {
+                alert('خطأ بالحفظ السحابي: ' + error.message);
+                return;
+            }
+
+            alert(`تم تسجيل المريض (${newPatient.name}) سحابياً بنجاح.\nرقم الدور: [${newPatient.queueNum}]`);
             e.target.reset();
             renderDepartmentsUI();
+            await syncCloudData();
+        }
+
+        function renderReceptionTable() {
+            const tbody = document.getElementById('receptionPatientsTable');
+            const activePatients = cloudPatients.filter(p => p.status !== 'completed');
+
+            if (activePatients.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#94a3b8; padding:15px;">لا يوجد مرضى محجوزين بقائمة الاستقبال حالياً</td></tr>';
+                return;
+            }
+
+            const statusMap = {
+                waiting_doctor: '🩺 عند الطبيب',
+                waiting_payment: '💳 عند المحاسب',
+                waiting_pharmacy: '💊 بالصيدلية'
+            };
+
+            tbody.innerHTML = activePatients.map((p, index) => `
+                <tr>
+                    <td style="font-weight:bold; color:#2563eb; text-align:center;">دور [${p.queueNum || (index + 1)}]</td>
+                    <td style="font-weight:bold;">${p.name}</td>
+                    <td>${p.nationalId || '-'}</td>
+                    <td>${p.phone || '-'}</td>
+                    <td><span class="badge" style="background:#e0f2fe; color:#0369a1;">قسم ${p.dept}</span></td>
+                    <td><span class="badge" style="background:#fef3c7; color:#92400e;">${statusMap[p.status] || p.status}</span></td>
+                    <td class="no-print">
+                        <button onclick="deletePatientByReception(${p.id})" class="btn-red" style="padding:4px 10px; font-size:12px;">🗑️ إلغاء/حذف</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function deletePatientByReception(id) {
+            if (confirm('هل أنت تأكد من حذف وإلغاء حجز هذا المريض سحابياً؟')) {
+                await db.from('patients').delete().eq('id', id);
+                await syncCloudData();
+            }
+        }
+
+        function exportReceptionToExcel() {
+            const activePatients = cloudPatients.filter(p => p.status !== 'completed');
+            if (activePatients.length === 0) return alert('لا يوجد مرضى بقائمة اليوم لتصديرهم!');
+
+            const currentHospName = getStoredHospitalName();
+            const statusMap = {
+                waiting_doctor: 'عند الطبيب',
+                waiting_payment: 'عند المحاسب',
+                waiting_pharmacy: 'بالصيدلية'
+            };
+
+            let tableHTML = `<table border="1" style="direction:rtl; text-align:right;">
+                <tr style="background-color:#047857; color:white; font-weight:bold; font-size:16px;">
+                    <th colspan="6" style="text-align:center;">قائمة مرضى الاستقبال والانتظار اليومية - ${currentHospName}</th>
+                </tr>
+                <tr style="background-color:#047857; color:white; font-weight:bold;">
+                    <th>رقم الدور</th>
+                    <th>اسم المريض</th>
+                    <th>رقم الهوية</th>
+                    <th>رقم الجوال</th>
+                    <th>القسم</th>
+                    <th>الحالة</th>
+                </tr>`;
+
+            activePatients.forEach((p, idx) => {
+                tableHTML += `<tr>
+                    <td style="text-align:center;">دور [${p.queueNum || (idx + 1)}]</td>
+                    <td style="font-weight:bold;">${p.name}</td>
+                    <td>${p.nationalId || '-'}</td>
+                    <td>${p.phone || '-'}</td>
+                    <td>قسم ${p.dept}</td>
+                    <td>${statusMap[p.status] || p.status}</td>
+                </tr>`;
+            });
+
+            tableHTML += `</table>`;
+
+            const blob = new Blob(['\ufeff' + tableHTML], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `قائمة_مرضى_الاستقبال_${currentHospName}_${new Date().toISOString().slice(0,10)}.xls`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         function updateDoctorDropdown() {
             const select = document.getElementById('docPatientSelect');
             const titleEl = document.getElementById('doctorDeptTitle');
-            const patients = getStoredPatients();
             
             let doctorDept = 'الكل';
             if (currentUser && currentUser.dept) {
@@ -1068,11 +1154,14 @@
             }
 
             titleEl.innerText = doctorDept === 'الكل' ? 'جميع الأقسام' : `قسم ${doctorDept}`;
-
             const currentSelectedValue = select.value;
 
-            const waiting = patients
-                .filter(p => p.status === 'waiting_doctor' && (doctorDept === 'الكل' || normalizeDept(p.dept) === doctorDept))
+            const waiting = cloudPatients
+                .filter(p => {
+                    if (p.status !== 'waiting_doctor') return false;
+                    if (doctorDept === 'الكل') return true;
+                    return normalizeDept(p.dept) === doctorDept;
+                })
                 .sort((a, b) => a.id - b.id);
 
             if (waiting.length === 0) {
@@ -1082,7 +1171,7 @@
                     waiting.map((p, index) => {
                         const queueDisplay = p.queueNum || (index + 1);
                         const rankTitle = index === 0 ? ' (🥇 الأول بالدور)' : index === 1 ? ' (🥈 الثاني بالدور)' : ` (رقم ${index + 1})`;
-                        return `<option value="${p.id}">دور [${queueDisplay}] - ${p.name} - قسم ${p.dept} ${rankTitle}</option>`;
+                        return `<option value="${p.id}">دور [${queueDisplay}] - ${p.name} - قسم ${normalizeDept(p.dept)} ${rankTitle}</option>`;
                     }).join('');
                 select.value = currentSelectedValue;
             }
@@ -1090,7 +1179,7 @@
 
         function handleDoctorMedCheck(medName, isChecked, availableQty) {
             if (isChecked && availableQty <= 0) {
-                alert(`⚠️ تنبيه: دواء (${medName}) نفد من المخزون تماماً (الكمية المتبقية: 0 عبوة).\nيرجى إبلاغ الصيدلي لتزويد المخزون أولاً.`);
+                alert(`⚠️ تنبيه: دواء (${medName}) نفد من المخزون تماماً.`);
                 selectedMedsState[medName] = false;
                 renderDoctorMedList(document.getElementById('medSearchInput').value.trim());
                 return;
@@ -1116,8 +1205,7 @@
 
         function renderDoctorMedList(filterText = '') {
             const container = document.getElementById('doctorMedList');
-            const inventory = getStoredInventory();
-            const filtered = inventory.filter(m => m.name.toLowerCase().includes(filterText.toLowerCase()));
+            const filtered = cloudInventory.filter(m => m.name.toLowerCase().includes(filterText.toLowerCase()));
 
             if (filtered.length === 0) {
                 container.innerHTML = '<p style="color:#94a3b8; text-align:center; grid-column:span 3;">لا توجد أدوية تطابق البحث</p>';
@@ -1150,9 +1238,8 @@
         }
 
         function selectAllMeds() {
-            const inventory = getStoredInventory();
             let hasOutOfStock = false;
-            inventory.forEach(m => {
+            cloudInventory.forEach(m => {
                 if(m.qty > 0) {
                     selectedMedsState[m.name] = true;
                     if(!selectedMedsQtyState[m.name]) selectedMedsQtyState[m.name] = 1;
@@ -1161,7 +1248,7 @@
                 }
             });
             if(hasOutOfStock) {
-                alert('تم تحديد الأدوية المتاحة فقط، وتم تجاوز الأدوية النافدة من المخزون ⚠️');
+                alert('تم تحديد الأدوية المتاحة فقط ⚠️');
             }
             renderDoctorMedList(document.getElementById('medSearchInput').value.trim());
             calculateLiveDoctorTotal();
@@ -1195,16 +1282,13 @@
             }
         }
 
-        function sendToAccountant() {
+        async function sendToAccountant() {
             const id = document.getElementById('docPatientSelect').value;
             if(!id) return alert('اختر مريضاً أولاً');
             
-            const patients = getStoredPatients();
-            const patient = patients.find(p => p.id == id);
-            
+            const patient = cloudPatients.find(p => p.id == id);
             const selectedItems = [];
             let totalPriceSum = 0;
-            const inventory = getStoredInventory();
             let stockError = false;
 
             if (normalizeDept(patient.dept) === 'أسنان') {
@@ -1226,9 +1310,9 @@
                 const unitPrice = parseFloat(c.getAttribute('data-price') || 0);
                 const requestedQty = selectedMedsQtyState[medName] || 1;
 
-                const invItem = inventory.find(i => i.name === medName);
+                const invItem = cloudInventory.find(i => i.name === medName);
                 if (invItem && invItem.qty < requestedQty) {
-                    alert(`❌ لا يمكن الإرسال: الدواء (${medName}) الكمية المتاحة منه بالمخزون هي (${invItem.qty}) فقط، ولا تكفي للعدد المطلوبة (${requestedQty}).`);
+                    alert(`❌ لا يمكن الإرسال: الدواء (${medName}) الكمية المتاحة منه بالمخزون هي (${invItem.qty}) فقط.`);
                     stockError = true;
                     return;
                 }
@@ -1239,28 +1323,30 @@
 
             if (stockError) return;
 
-            patient.meds = selectedItems;
-            patient.total = totalPriceSum;
-            patient.notes = document.getElementById('docNotes').value.trim();
-            patient.doctorName = currentUser ? currentUser.username : 'دكتور العامة';
-            patient.status = 'waiting_payment';
+            const updateData = {
+                meds: selectedItems,
+                total: totalPriceSum,
+                notes: document.getElementById('docNotes').value.trim(),
+                doctorName: currentUser ? currentUser.username : 'دكتور العامة',
+                status: 'waiting_payment'
+            };
 
-            savePatients(patients);
-            alert(`تم تحويل المريض (${patient.name}) بواسطة الطبيب (${patient.doctorName}) بنجاح. المبلغ المطلوب: ${patient.total} ₪`);
+            await db.from('patients').update(updateData).eq('id', id);
+            alert(`تم تحويل المريض (${patient.name}) بنجاح. المبلغ المطلوب: ${totalPriceSum} ₪`);
             
             resetSelectionState();
             document.getElementById('docNotes').value = '';
             document.getElementById('customDentalServiceName').value = '';
             document.getElementById('customDentalServicePrice').value = '';
             document.getElementById('medSearchInput').value = '';
+            await syncCloudData();
         }
 
         function updateAccountantDropdown() {
             const select = document.getElementById('accSelect');
-            const patients = getStoredPatients();
             const currentSelectedValue = select.value;
             
-            const waiting = patients
+            const waiting = cloudPatients
                 .filter(p => p.status === 'waiting_payment')
                 .sort((a, b) => a.id - b.id);
 
@@ -1279,15 +1365,12 @@
 
         function calculateBill() {
             const id = document.getElementById('accSelect').value;
-            const patients = getStoredPatients();
-            const patient = patients.find(p => p.id == id);
+            const patient = cloudPatients.find(p => p.id == id);
             document.getElementById('totalBillAmountInput').value = patient ? patient.total : 0;
         }
 
         function calculatePaymentStats() {
-            const patients = getStoredPatients();
-            const paidPatients = patients.filter(p => p.status === 'waiting_pharmacy' || p.status === 'completed');
-
+            const paidPatients = cloudPatients.filter(p => p.status === 'waiting_pharmacy' || p.status === 'completed');
             let jawwalPay = 0, bank = 0, wallet = 0, cash = 0;
 
             paidPatients.forEach(p => {
@@ -1322,8 +1405,7 @@
         }
 
         function exportAllOperationsToExcel() {
-            const patients = getStoredPatients();
-            if (patients.length === 0) return alert('لا توجد حالات مسجلة بالنظام حتى الآن!');
+            if (cloudPatients.length === 0) return alert('لا توجد حالات مسجلة بالنظام حتى الآن!');
 
             const currentHospName = getStoredHospitalName();
             const statusMap = {
@@ -1349,7 +1431,7 @@
                     <th>حالة الطلب</th>
                 </tr>`;
 
-            patients.forEach((p, idx) => {
+            cloudPatients.forEach((p, idx) => {
                 tableHTML += `<tr>
                     <td>${p.date || '-'}</td>
                     <td style="text-align:center;">دور [${p.queueNum || (idx + 1)}]</td>
@@ -1365,9 +1447,7 @@
 
             tableHTML += `</table>`;
 
-            const blob = new Blob(['\ufeff' + tableHTML], {
-                type: 'application/vnd.ms-excel;charset=utf-8;'
-            });
+            const blob = new Blob(['\ufeff' + tableHTML], { type: 'application/vnd.ms-excel;charset=utf-8;' });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
             link.download = `كشف_العمليات_والسجل_المالي_${currentHospName}_${new Date().toISOString().slice(0,10)}.xls`;
@@ -1377,10 +1457,8 @@
         }
 
         function exportDoctorsToExcel() {
-            const patients = getStoredPatients();
             const doctorMap = {};
-
-            patients.forEach(p => {
+            cloudPatients.forEach(p => {
                 if (p.doctorName && p.doctorName !== '-') {
                     if (!doctorMap[p.doctorName]) {
                         doctorMap[p.doctorName] = { count: 0, total: 0 };
@@ -1414,9 +1492,7 @@
 
             tableHTML += `</table>`;
 
-            const blob = new Blob(['\ufeff' + tableHTML], {
-                type: 'application/vnd.ms-excel;charset=utf-8;'
-            });
+            const blob = new Blob(['\ufeff' + tableHTML], { type: 'application/vnd.ms-excel;charset=utf-8;' });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
             link.download = `إحصائيات_الأطباء_${currentHospName}_${new Date().toISOString().slice(0,10)}.xls`;
@@ -1426,15 +1502,12 @@
         }
 
         function exportMonthlyPaymentsToExcel() {
-            const patients = getStoredPatients();
-            if (patients.length === 0) return alert('لا توجد بيانات أو مبيعات مسجلة حتى الآن!');
+            if (cloudPatients.length === 0) return alert('لا توجد بيانات أو مبيعات مسجلة حتى الآن!');
 
             const dailyMap = {};
-
-            patients.forEach(p => {
+            cloudPatients.forEach(p => {
                 if (p.status === 'completed' || p.status === 'waiting_pharmacy') {
                     const dateKey = p.date || new Date().toISOString().slice(0, 10);
-                    
                     if (!dailyMap[dateKey]) {
                         dailyMap[dateKey] = { jawwalPay: 0, bank: 0, wallet: 0, cash: 0, total: 0, patientsCount: 0 };
                     }
@@ -1491,7 +1564,7 @@
             });
 
             tableHTML += `<tr style="font-weight:bold; background-color:#e2e8f0; font-size:15px;">
-                <td>الإجمالي الكلي (لعدد ${activeDaysCount} أصل أسبوع/شهر)</td>
+                <td>الإجمالي الكلي</td>
                 <td>-</td>
                 <td>${grandJawwal} ₪</td>
                 <td>${grandBank} ₪</td>
@@ -1500,46 +1573,41 @@
                 <td style="color:#2563eb;">${grandTotal} ₪</td>
             </tr></table>`;
 
-            const blob = new Blob(['\ufeff' + tableHTML], {
-                type: 'application/vnd.ms-excel;charset=utf-8;'
-            });
+            const blob = new Blob(['\ufeff' + tableHTML], { type: 'application/vnd.ms-excel;charset=utf-8;' });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
-            link.download = `تقرير_ملخص_حسابات_${currentHospName}_أيام_العمل_${activeDaysCount}_يوم.xls`;
+            link.download = `تقرير_ملخص_حسابات_${currentHospName}.xls`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
         }
 
-        function processPayment() {
+        async function processPayment() {
             const id = document.getElementById('accSelect').value;
             if(!id) return alert('اختر مريضاً أولاً');
             
-            const patients = getStoredPatients();
-            const patient = patients.find(p => p.id == id);
-            
             const finalAmount = parseFloat(document.getElementById('totalBillAmountInput').value);
-            patient.total = finalAmount;
-            patient.payMethod = document.getElementById('payMethod').value;
-            patient.payPhone = document.getElementById('payPhone').value || '-';
-            patient.payRef = document.getElementById('payRef').value || ('REF-' + Math.floor(Math.random()*100000));
-            patient.status = 'waiting_pharmacy';
+            const updatePayload = {
+                total: finalAmount,
+                payMethod: document.getElementById('payMethod').value,
+                payPhone: document.getElementById('payPhone').value || '-',
+                payRef: document.getElementById('payRef').value || ('REF-' + Math.floor(Math.random()*100000)),
+                status: 'waiting_pharmacy'
+            };
 
-            savePatients(patients);
-            alert(`تم تأكيد استلام مبلغ (${patient.total} ₪) عبر (${patient.payMethod}) وتحويل المريض [دور رقم ${patient.queueNum || 1}] للصيدلية.`);
+            await db.from('patients').update(updatePayload).eq('id', id);
+            alert(`تم تأكيد استلام الدفع وتحويل المريض للصيدلية بنجاح.`);
             
             document.getElementById('totalBillAmountInput').value = 0;
             document.getElementById('payPhone').value = '';
             document.getElementById('payRef').value = '';
             
-            calculatePaymentStats();
+            await syncCloudData();
         }
 
         function renderPharmacy() {
             const container = document.getElementById('pharmacyList');
-            const patients = getStoredPatients();
-            
-            const ready = patients
+            const ready = cloudPatients
                 .filter(p => p.status === 'waiting_pharmacy')
                 .sort((a, b) => a.id - b.id);
 
@@ -1561,7 +1629,7 @@
                         
                         <div style="font-size:15px; margin-top:8px;">
                             <strong>💊 الأدوية والإجراءات المحددة:</strong> 
-                            <span style="color:#059669; font-weight:bold;">${p.meds.join(' | ') || 'لا يوجد أدوية محددة'}</span>
+                            <span style="color:#059669; font-weight:bold;">${Array.isArray(p.meds) ? p.meds.join(' | ') : p.meds || 'لا يوجد أدوية محددة'}</span>
                         </div>
 
                         ${p.notes ? `
@@ -1574,15 +1642,14 @@
             }
         }
 
-        function dispenseMed(id) {
-            const patients = getStoredPatients();
-            const patient = patients.find(p => p.id == id);
-            const inventory = getStoredInventory();
+        async function dispenseMed(id) {
+            const patient = cloudPatients.find(p => p.id == id);
             let outOfStockAlert = false;
 
             if (patient.meds && patient.meds.length > 0) {
-                patient.meds.forEach(item => {
-                    if (item.startsWith("دواء: ")) {
+                const medsArray = Array.isArray(patient.meds) ? patient.meds : [patient.meds];
+                medsArray.forEach(item => {
+                    if (typeof item === 'string' && item.startsWith("دواء: ")) {
                         let medName = item.replace("دواء: ", "").trim();
                         let qtyToDeduct = 1;
 
@@ -1592,9 +1659,9 @@
                             medName = medName.replace(/\(عدد \d+\)/, "").trim();
                         }
 
-                        const invItem = inventory.find(i => i.name === medName);
+                        const invItem = cloudInventory.find(i => i.name === medName);
                         if (!invItem || invItem.qty < qtyToDeduct) {
-                            alert(`❌ خطأ في الصرف: دواء (${medName}) المطلوب منه (${qtyToDeduct}) عبوة غير متوفر حالياً بالرصيد الكافي بالمخزون! (المتبقي: ${invItem ? invItem.qty : 0}).\nيرجى إعادة تزويد المخزون أولاً لتأكيد تسليم الوصفة.`);
+                            alert(`❌ خطأ في الصرف: دواء (${medName}) غير متوفر بالرصيد الكافي بالمخزون!`);
                             outOfStockAlert = true;
                         }
                     }
@@ -1602,8 +1669,8 @@
 
                 if (outOfStockAlert) return;
 
-                patient.meds.forEach(item => {
-                    if (item.startsWith("دواء: ")) {
+                for (const item of medsArray) {
+                    if (typeof item === 'string' && item.startsWith("دواء: ")) {
                         let medName = item.replace("دواء: ", "").trim();
                         let qtyToDeduct = 1;
 
@@ -1613,44 +1680,42 @@
                             medName = medName.replace(/\(عدد \d+\)/, "").trim();
                         }
 
-                        const invItem = inventory.find(i => i.name === medName);
-                        if (!invItem) {
-                            invItem.qty = Math.max(0, invItem.qty - qtyToDeduct);
-                            invItem.usedToday = (invItem.usedToday || 0) + qtyToDeduct;
-                            invItem.totalUsed = (invItem.totalUsed || 0) + qtyToDeduct;
+                        const invItem = cloudInventory.find(i => i.name === medName);
+                        if (invItem) {
+                            const newQty = Math.max(0, invItem.qty - qtyToDeduct);
+                            const newUsedToday = (invItem.usedToday || 0) + qtyToDeduct;
+                            const newTotalUsed = (invItem.totalUsed || 0) + qtyToDeduct;
+
+                            await db.from('inventory').update({
+                                qty: newQty,
+                                usedToday: newUsedToday,
+                                totalUsed: newTotalUsed
+                            }).eq('id', invItem.id);
                         }
                     }
-                });
-                saveInventory(inventory);
+                }
             }
 
-            patient.status = 'completed';
-            savePatients(patients);
-
-            alert(`تم إكمال وإغلاق حالة المريض (${patient.name}) وتحديث مخزون الأدوية بنجاح.`);
+            await db.from('patients').update({ status: 'completed' }).eq('id', id);
+            alert(`تم إكمال وإغلاق حالة المريض (${patient.name}) سحابياً بنجاح.`);
+            await syncCloudData();
         }
 
-        function addNewInventoryMed(e) {
+        async function addNewInventoryMed(e) {
             e.preventDefault();
             const name = document.getElementById('newInventoryMedName').value.trim();
             const price = parseFloat(document.getElementById('newInventoryMedPrice').value);
             const qty = parseInt(document.getElementById('newInventoryMedQty').value);
 
-            const inventory = getStoredInventory();
-            inventory.push({ id: Date.now(), name, price, qty, usedToday: 0, totalUsed: 0 });
-            saveInventory(inventory);
-
-            alert(`تم إضافة الدواء (${name}) بسعر ${price} ₪ للمخزن.`);
+            await db.from('inventory').insert([{ name, price, qty, usedToday: 0, totalUsed: 0 }]);
+            alert(`تم إضافة الدواء (${name}) بسعر ${price} ₪ للمخزن السحابي.`);
             e.target.reset();
-            renderInventoryTable();
-            renderDoctorMedList();
-            renderPharmacy();
+            await syncCloudData();
         }
 
         function renderInventoryTable() {
             const tbody = document.getElementById('inventoryTable');
-            const inventory = getStoredInventory();
-            tbody.innerHTML = inventory.map(i => `
+            tbody.innerHTML = cloudInventory.map(i => `
                 <tr>
                     <td style="font-weight:bold; font-size:15px;">${i.name}</td>
                     <td style="color:#059669; font-weight:bold;">${i.price} ₪</td>
@@ -1666,8 +1731,7 @@
         }
 
         function exportInventoryToExcel() {
-            const inventory = getStoredInventory();
-            if(inventory.length === 0) return alert('لا توجد أدوية بالتصدير!');
+            if(cloudInventory.length === 0) return alert('لا توجد أدوية بالتصدير!');
 
             const currentHospName = getStoredHospitalName();
             let tableHTML = `<table border="1" style="direction:rtl; text-align:right;">
@@ -1682,7 +1746,7 @@
                     <th>إجمالي الاستهلاك</th>
                 </tr>`;
 
-            inventory.forEach(i => {
+            cloudInventory.forEach(i => {
                 tableHTML += `<tr>
                     <td>${i.name}</td>
                     <td>${i.price}</td>
@@ -1694,9 +1758,7 @@
 
             tableHTML += `</table>`;
 
-            const blob = new Blob(['\ufeff' + tableHTML], {
-                type: 'application/vnd.ms-excel;charset=utf-8;'
-            });
+            const blob = new Blob(['\ufeff' + tableHTML], { type: 'application/vnd.ms-excel;charset=utf-8;' });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
             link.download = `تقرير_مخزن_${currentHospName}_${new Date().toISOString().slice(0,10)}.xls`;
@@ -1706,22 +1768,21 @@
         }
 
         function renderAdmin() {
-            const patients = getStoredPatients();
-            const completed = patients.filter(p => p.status === 'completed' || p.status === 'waiting_pharmacy');
-            const totalIncome = completed.reduce((sum, p) => sum + p.total, 0);
+            const completed = cloudPatients.filter(p => p.status === 'completed' || p.status === 'waiting_pharmacy');
+            const totalIncome = completed.reduce((sum, p) => sum + (p.total || 0), 0);
 
             const expensesInput = document.getElementById('dailyExpensesInput');
             const expenses = expensesInput ? (parseFloat(expensesInput.value) || 0) : 0;
             const netProfit = Math.max(0, totalIncome - expenses);
 
-            document.getElementById('statPatients').innerText = patients.length;
+            document.getElementById('statPatients').innerText = cloudPatients.length;
             document.getElementById('statIncome').innerText = `${totalIncome} ₪`;
             document.getElementById('statProfit').innerText = `${netProfit} ₪`;
 
             calculatePaymentStats();
 
             const doctorMap = {};
-            patients.forEach(p => {
+            cloudPatients.forEach(p => {
                 if (p.doctorName && p.doctorName !== '-') {
                     if (!doctorMap[p.doctorName]) {
                         doctorMap[p.doctorName] = { count: 0, total: 0 };
@@ -1746,7 +1807,7 @@
             }
 
             const tbody = document.getElementById('adminReportTable');
-            if(patients.length === 0) {
+            if(cloudPatients.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:#94a3b8;">لا توجد حالات مسجلة حتى الآن</td></tr>';
                 return;
             }
@@ -1758,7 +1819,7 @@
                 completed: 'مكتمل ومصروف'
             };
 
-            tbody.innerHTML = patients.map((p, idx) => `
+            tbody.innerHTML = cloudPatients.map((p, idx) => `
                 <tr>
                     <td>${p.date || '-'}</td>
                     <td style="font-weight:bold; color:#2563eb;">[دور ${p.queueNum || (idx + 1)}]</td>
@@ -1773,20 +1834,15 @@
             `).join('');
         }
 
-        function clearAllDataPermanently() {
-            if(confirm('هل أنت تأكد من تفريغ ومسح السجل التراكمي كاملاً للبدء بفترة عمل جديدة للمستشفى/العيادة؟')) {
-                localStorage.removeItem('clinic_patients');
-                
-                const inventory = getStoredInventory();
-                inventory.forEach(i => i.usedToday = 0);
-                saveInventory(inventory);
-
-                refreshActiveScreenData();
-                alert('تم إعادة الضبط والبدء بسجل جديد بنجاح!');
+        async function clearAllDataPermanently() {
+            if(confirm('هل أنت تأكد من تفريغ ومسح السجل السحابي التراكمي كاملاً لجدول المرضى؟')) {
+                await db.from('patients').delete().neq('id', 0);
+                await db.from('inventory').update({ usedToday: 0 }).neq('id', 0);
+                await syncCloudData();
+                alert('تم تفريغ السجل والبدء بإنشاء بيانات جديدة بنجاح!');
             }
         }
 
-        // إنشاء وتخزين الحساب سحابياً بـ Supabase
         async function addUserByAdmin(e) {
             e.preventDefault();
             const btn = document.getElementById('createUserBtn');
@@ -1818,7 +1874,7 @@
             if (error) {
                 alert('خطأ في التخزين السحابي: ' + error.message);
             } else {
-                alert(`تم إنشاء الحساب سحابياً بنجاح! 🚀\nاسم المستخدم: ${username}\nالتخصص: ${roleName}\nيمكن الآن الدخول بهذا الحساب فوراً من أي جوال أو متصفح بدون مشاكل!`);
+                alert(`تم إنشاء الحساب سحابياً بنجاح! 🚀`);
                 e.target.reset();
                 renderUsersTable();
             }
@@ -1829,7 +1885,6 @@
             tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">جاري جلب الحسابات السحابية... ⏳</td></tr>';
             
             const systemUsers = await fetchCloudUsers();
-            
             if (systemUsers.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#94a3b8;">لا توجد حسابات مسجلة سحابياً</td></tr>';
                 return;
@@ -1852,11 +1907,12 @@
         setHospitalNameDisplay();
         renderDepartmentsUI();
 
+        // تحديث خفيف وسلس كل 4 ثوانٍ يمنع التعليق والرمشة كلياً
         setInterval(function() {
             if (currentUser && activeTabName !== 'login') {
-                updateNotificationBadges();
+                syncCloudData();
             }
-        }, 1000);
+        }, 4000);
     </script>
 </body>
 </html>
