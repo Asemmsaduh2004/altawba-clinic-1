@@ -1723,28 +1723,62 @@
                 return;
             }
 
-            tbody.innerHTML = cloudInventory.map(i => `
+            const todayStr = new Date().toISOString().slice(0, 10);
+            const completedPatients = cloudPatients.filter(p => p.status === 'completed');
+
+            tbody.innerHTML = cloudInventory.map(i => {
+                let usedTodayCount = 0;
+                let totalUsedCount = 0;
+
+                completedPatients.forEach(p => {
+                    if (p.meds && Array.isArray(p.meds)) {
+                        p.meds.forEach(item => {
+                            if (typeof item === 'string' && item.startsWith("دواء: ")) {
+                                let medName = item.replace("دواء: ", "").trim();
+                                let qtyCount = 1;
+
+                                const qtyMatch = medName.match(/\(عدد (\d+)\)/);
+                                if (qtyMatch) {
+                                    qtyCount = parseInt(qtyMatch[1]);
+                                    medName = medName.replace(/\(عدد \d+\)/, "").trim();
+                                }
+
+                                if (medName === i.name) {
+                                    totalUsedCount += qtyCount;
+                                    if (p.date === todayStr || (!p.date && todayStr)) {
+                                        usedTodayCount += qtyCount;
+                                    }
+                                }
+                            }
+                        });
+                    }
+                });
+
+                return `
                 <tr>
                     <td style="font-weight:bold; font-size:15px;">${i.name}</td>
                     <td style="color:#059669; font-weight:bold;">${i.price} ₪</td>
                     <td style="font-weight:bold; color:${i.qty < 5 ? '#ef4444' : '#059669'};">${i.qty} عبوة متبقية</td>
-                    <td style="font-weight:bold; color:#2563eb;">${i.usedToday || 0} عبوة مصروفة اليوم</td>
-                    <td style="font-weight:bold; color:#d97706;">${i.totalUsed || 0} عبوة إجمالي</td>
+                    <td style="font-weight:bold; color:#2563eb;">${usedTodayCount} عبوة مصروفة اليوم</td>
+                    <td style="font-weight:bold; color:#d97706;">${totalUsedCount} عبوة إجمالي</td>
                     <td class="no-print">
                         <button onclick="editInventoryMed(${i.id})" class="btn-orange" style="margin-left:4px;">✏️ تعديل / تزويد</button>
                         <button onclick="deleteInventoryMed(${i.id})" class="btn-red">🗑️ حذف</button>
                     </td>
-                </tr>
-            `).join('');
+                </tr>`;
+            }).join('');
         }
 
         function exportInventoryToExcel() {
             if(!cloudInventory || cloudInventory.length === 0) return alert('لا توجد أدوية بالتصدير!');
 
             const currentHospName = getStoredHospitalName();
+            const todayStr = new Date().toISOString().slice(0, 10);
+            const completedPatients = cloudPatients.filter(p => p.status === 'completed');
+
             let tableHTML = `<table border="1" style="direction:rtl; text-align:right;">
                 <tr style="background-color:#047857; color:white; font-weight:bold; font-size:16px;">
-                    <th colspan="5" style="text-align:center;">تقرير مخزن الأدوية - ${currentHospName}</th>
+                    <th colspan="5" style="text-align:center;">تقرير مخزن الأدوية والاستهلاك - ${currentHospName}</th>
                 </tr>
                 <tr style="background-color:#047857; color:white; font-weight:bold;">
                     <th>اسم الدواء</th>
@@ -1755,12 +1789,39 @@
                 </tr>`;
 
             cloudInventory.forEach(i => {
+                let usedTodayCount = 0;
+                let totalUsedCount = 0;
+
+                completedPatients.forEach(p => {
+                    if (p.meds && Array.isArray(p.meds)) {
+                        p.meds.forEach(item => {
+                            if (typeof item === 'string' && item.startsWith("دواء: ")) {
+                                let medName = item.replace("دواء: ", "").trim();
+                                let qtyCount = 1;
+
+                                const qtyMatch = medName.match(/\(عدد (\d+)\)/);
+                                if (qtyMatch) {
+                                    qtyCount = parseInt(qtyMatch[1]);
+                                    medName = medName.replace(/\(عدد \d+\)/, "").trim();
+                                }
+
+                                if (medName === i.name) {
+                                    totalUsedCount += qtyCount;
+                                    if (p.date === todayStr || (!p.date && todayStr)) {
+                                        usedTodayCount += qtyCount;
+                                    }
+                                }
+                            }
+                        });
+                    }
+                });
+
                 tableHTML += `<tr>
                     <td>${i.name}</td>
                     <td>${i.price}</td>
                     <td>${i.qty}</td>
-                    <td>${i.usedToday || 0}</td>
-                    <td>${i.totalUsed || 0}</td>
+                    <td>${usedTodayCount}</td>
+                    <td>${totalUsedCount}</td>
                 </tr>`;
             });
 
@@ -1769,7 +1830,7 @@
             const blob = new Blob(['\ufeff' + tableHTML], { type: 'application/vnd.ms-excel;charset=utf-8;' });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
-            link.download = `تقرير_مخزن_${currentHospName}_${new Date().toISOString().slice(0,10)}.xls`;
+            link.download = `تقرير_مخزن_${currentHospName}_${todayStr}.xls`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
